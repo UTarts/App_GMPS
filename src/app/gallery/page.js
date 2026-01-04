@@ -1,14 +1,27 @@
 "use client";
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronLeft, Image as ImageIcon, PlayCircle, X, Maximize2 } from 'lucide-react';
+import { ChevronLeft, Image as ImageIcon, PlayCircle, X } from 'lucide-react';
 import Link from 'next/link';
 
 export default function GalleryPage() {
   const [data, setData] = useState({ images: [], videos: [] });
   const [loading, setLoading] = useState(true);
+  
+  // Tabs & Filters
   const [activeTab, setActiveTab] = useState('photos'); // 'photos' | 'videos'
-  const [lightboxItem, setLightboxItem] = useState(null); // { type, src, caption }
+  const [activeCategory, setActiveCategory] = useState('all'); // 'all' | 'academic' | 'sports' ...
+  
+  const [lightboxItem, setLightboxItem] = useState(null);
+
+  // Categories Configuration
+  const categories = [
+    { id: 'all', label: 'All' },
+    { id: 'academic', label: 'Academic' },
+    { id: 'sports', label: 'Sports' },
+    { id: 'cultural', label: 'Cultural' },
+    { id: 'infrastructure', label: 'Campus' },
+  ];
 
   useEffect(() => {
     async function fetchData() {
@@ -22,8 +35,13 @@ export default function GalleryPage() {
     fetchData();
   }, []);
 
-  // Helper: Extract YouTube ID for Thumbnails
+  // Filter Logic
+  const filteredImages = data.images.filter(item => activeCategory === 'all' || item.category === activeCategory);
+  const filteredVideos = data.videos.filter(item => activeCategory === 'all' || item.category === activeCategory);
+
+  // Helper: Extract YouTube ID
   const getYouTubeId = (url) => {
+    if (!url) return null;
     const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
     const match = url.match(regExp);
     return (match && match[2].length === 11) ? match[2] : null;
@@ -93,10 +111,9 @@ export default function GalleryPage() {
         </div>
       </div>
 
-      {/* --- TABS --- */}
+      {/* --- MAIN TABS (Photos/Videos) --- */}
       <div className="px-4 mt-6">
         <div className="bg-gray-200/80 dark:bg-gray-800/80 p-1 rounded-xl flex shadow-inner relative">
-            {/* Animated Slider Background */}
             <motion.div 
                 className="absolute top-1 bottom-1 bg-white dark:bg-gray-700 rounded-lg shadow-sm z-0"
                 layoutId="tab-bg"
@@ -107,7 +124,6 @@ export default function GalleryPage() {
                     right: activeTab === 'photos' ? '50%' : '4px' 
                 }}
             />
-            
             <button onClick={() => setActiveTab('photos')} className={`flex-1 py-2.5 text-sm font-bold rounded-lg relative z-10 flex items-center justify-center gap-2 transition-colors ${activeTab === 'photos' ? 'text-purple-600 dark:text-white' : 'text-gray-500'}`}>
                 <ImageIcon size={16} /> Moments
             </button>
@@ -117,18 +133,37 @@ export default function GalleryPage() {
         </div>
       </div>
 
+      {/* --- CATEGORY FILTERS --- */}
+      <div className="px-4 mt-4">
+        <div className="flex gap-2 overflow-x-auto no-scrollbar pb-2">
+            {categories.map((cat) => (
+                <button
+                    key={cat.id}
+                    onClick={() => setActiveCategory(cat.id)}
+                    className={`px-4 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-all border ${
+                        activeCategory === cat.id 
+                        ? 'bg-black dark:bg-white text-white dark:text-black border-black dark:border-white' 
+                        : 'bg-white dark:bg-gray-900 text-gray-500 border-gray-200 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800'
+                    }`}
+                >
+                    {cat.label}
+                </button>
+            ))}
+        </div>
+      </div>
+
       {/* --- GALLERY CONTENT --- */}
-      <div className="px-4 mt-6 min-h-[60vh]">
+      <div className="px-4 mt-4 min-h-[60vh]">
         <AnimatePresence mode='wait'>
             
             {/* === 1. IMAGES (MASONRY LAYOUT) === */}
             {activeTab === 'photos' && (
                 <motion.div 
                     key="photos"
-                    initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }}
+                    initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}
                     className="columns-2 gap-4 space-y-4"
                 >
-                    {data.images.map((img, i) => (
+                    {filteredImages.map((img, i) => (
                         <div 
                             key={i} 
                             className="break-inside-avoid relative group rounded-xl overflow-hidden bg-gray-200 dark:bg-gray-800 shadow-sm border border-gray-100 dark:border-gray-800 cursor-zoom-in"
@@ -142,11 +177,16 @@ export default function GalleryPage() {
                             />
                             {/* Overlay Gradient */}
                             <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-end p-3">
+                                <span className="text-[10px] text-white/80 bg-white/20 px-2 py-0.5 rounded-md w-fit mb-1 backdrop-blur-sm uppercase">{img.category}</span>
                                 <p className="text-white text-xs font-medium line-clamp-2">{img.caption}</p>
                             </div>
                         </div>
                     ))}
-                    {data.images.length === 0 && <p className="col-span-2 text-center text-gray-400 py-10">No photos added yet.</p>}
+                    {filteredImages.length === 0 && (
+                        <div className="col-span-2 py-20 text-center">
+                            <p className="text-gray-400 text-sm">No photos found in this category.</p>
+                        </div>
+                    )}
                 </motion.div>
             )}
 
@@ -154,17 +194,17 @@ export default function GalleryPage() {
             {activeTab === 'videos' && (
                 <motion.div 
                     key="videos"
-                    initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }}
+                    initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}
                     className="grid grid-cols-1 md:grid-cols-2 gap-4"
                 >
-                    {data.videos.map((vid, i) => {
+                    {filteredVideos.map((vid, i) => {
                         const ytId = getYouTubeId(vid.video_url);
                         const thumb = ytId ? `https://img.youtube.com/vi/${ytId}/hqdefault.jpg` : null;
 
                         return (
                             <div 
                                 key={i} 
-                                className="relative rounded-2xl overflow-hidden shadow-md bg-black group cursor-pointer aspect-video"
+                                className="relative rounded-2xl overflow-hidden shadow-md bg-black group cursor-pointer aspect-video border border-gray-200 dark:border-gray-800"
                                 onClick={() => setLightboxItem({ type: 'vid', src: vid.video_url, caption: vid.caption })}
                             >
                                 {thumb ? (
@@ -173,7 +213,10 @@ export default function GalleryPage() {
                                     <div className="w-full h-full bg-gray-800 flex items-center justify-center text-white/50">No Preview</div>
                                 )}
                                 
-                                {/* Play Button Overlay */}
+                                <div className="absolute top-3 left-3">
+                                    <span className="text-[10px] text-white bg-black/50 px-2 py-1 rounded-full backdrop-blur-sm uppercase font-bold tracking-wide border border-white/10">{vid.category}</span>
+                                </div>
+
                                 <div className="absolute inset-0 flex items-center justify-center">
                                     <div className="w-12 h-12 bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center border border-white/40 group-hover:scale-110 transition-transform">
                                         <PlayCircle size={24} className="text-white fill-white" />
@@ -186,7 +229,11 @@ export default function GalleryPage() {
                             </div>
                         );
                     })}
-                    {data.videos.length === 0 && <p className="text-center text-gray-400 py-10 w-full">No videos added yet.</p>}
+                    {filteredVideos.length === 0 && (
+                        <div className="col-span-1 md:col-span-2 py-20 text-center">
+                            <p className="text-gray-400 text-sm">No videos found in this category.</p>
+                        </div>
+                    )}
                 </motion.div>
             )}
 

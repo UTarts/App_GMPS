@@ -140,7 +140,7 @@ export default function Home() {
         </div>
       </div>
 
-      {/* --- 2. DYNAMIC PROFILE CARD (Colors & Logic Fixed) --- */}
+      {/* --- 2. DYNAMIC PROFILE CARD  --- */}
       <div className="px-4 mt-6 mb-8">
         <div className="relative">
           <div className={`bg-gradient-to-r ${getCardStyle()} rounded-[2.5rem] p-7 text-white shadow-xl flex justify-between items-center relative overflow-hidden min-h-[150px]`}>
@@ -149,12 +149,14 @@ export default function Home() {
               <div className="absolute -left-10 -bottom-20 w-48 h-48 bg-white/10 rounded-full blur-3xl pointer-events-none"></div>
 
               {/* Text Info */}
-              <div className="flex flex-col relative z-10">
+              <div className="flex flex-col relative z-10 flex-1 min-w-0 pr-2">
                   <p className="text-white/80 text-[11px] font-bold uppercase tracking-widest mb-0.5">Welcome Back</p>
-                  
-                  {/* Name (Logic Applied) */}
-                  <h2 className="text-[2.2rem] font-black leading-tight tracking-tight mb-4">
-                    {getDisplayName()}
+                  <h2 className={`font-black leading-tight tracking-tight mb-4 ${
+                     getDisplayName()?.length > 20 ? 'text-[20px]' :  
+                     getDisplayName()?.length > 12 ? 'text-[28px]' :  
+                     'text-[35px]'                                    
+                  }`}>
+                  {getDisplayName()}
                   </h2>
                   
                   {/* Designation Badge */}
@@ -166,8 +168,8 @@ export default function Home() {
               </div>
 
               {/* Profile Picture Inside Card */}
-              <div className="relative z-20 -mr-3"> 
-                  <div className="w-28 h-28 rounded-full  shadow-none bg-gray-200 overflow-hidden">
+              <div className="relative z-20 -mr-3 flex-shrink-0"> 
+                  <div className="w-28 h-28 rounded-full shadow-none bg-gray-200 overflow-hidden">
                       <img 
                           src={user?.pic ? `${process.env.NEXT_PUBLIC_IMAGE_BASE_URL}${user.pic}` : `${process.env.NEXT_PUBLIC_IMAGE_BASE_URL}GMPSimages/default_student.png`}
                           alt="Profile"

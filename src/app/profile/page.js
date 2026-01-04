@@ -281,7 +281,7 @@ export default function ProfilePage() {
           
           if (status === 'present') bgColor = "bg-green-100 text-green-700 border border-green-200";
           else if (status === 'absent') bgColor = "bg-red-100 text-red-700 border border-red-200";
-          else if (status === 'holiday') bgColor = "bg-orange-100 text-orange-700 border border-orange-200";
+          else if (status === 'holiday') bgColor = "bg-yellow-100 text-yellow-700 border border-yellow-200";
           else if (isSunday) bgColor = "bg-gray-100 text-gray-400 opacity-50";
 
           if (isToday) bgColor += " ring-2 ring-blue-500 ring-offset-1";
@@ -436,7 +436,7 @@ export default function ProfilePage() {
                             <div className="flex gap-4 mt-3 justify-center">
                                 <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-green-500"></div><span className="text-[10px] text-gray-500">Present</span></div>
                                 <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-red-500"></div><span className="text-[10px] text-gray-500">Absent</span></div>
-                                <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-orange-500"></div><span className="text-[10px] text-gray-500">Holiday</span></div>
+                                <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-yellow-500"></div><span className="text-[10px] text-gray-500">Holiday</span></div>
                             </div>
                         </div>
                     </div>
