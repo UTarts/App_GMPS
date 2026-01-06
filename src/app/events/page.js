@@ -40,11 +40,7 @@ export default function UpdatesPage() {
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   };
 
-  if (loading) return (
-    <div className="flex h-screen items-center justify-center bg-[#F2F6FA] dark:bg-[#0a0a0a]">
-      <div className="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-    </div>
-  );
+  if (loading) return <UpdatesSkeleton />;
 
   return (
     <div className="min-h-screen bg-[#F2F6FA] dark:bg-[#0a0a0a] text-gray-800 dark:text-gray-100 font-sans pb-24 relative">
@@ -54,11 +50,16 @@ export default function UpdatesPage() {
         {lightboxItem && (
           <motion.div 
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[60] bg-black/95 flex flex-col items-center justify-center p-4 backdrop-blur-sm"
+            className="fixed inset-0 z-[100] bg-black/95 flex flex-col items-center justify-center p-4 backdrop-blur-sm"
             onClick={() => setLightboxItem(null)}
           >
             <button className="absolute top-6 right-6 text-white bg-white/10 p-2 rounded-full"><X size={24} /></button>
-            <motion.img initial={{ scale: 0.8 }} animate={{ scale: 1 }} src={lightboxItem.src} className="max-w-full max-h-[70vh] rounded-lg shadow-2xl object-contain mb-4" onClick={(e) => e.stopPropagation()} />
+            <motion.img 
+                initial={{ scale: 0.8 }} animate={{ scale: 1 }} 
+                src={lightboxItem.src} 
+                className="max-w-full max-h-[70vh] rounded-lg shadow-2xl object-contain mb-4" 
+                onClick={(e) => e.stopPropagation()} 
+            />
             {lightboxItem.text && (
                 <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className="bg-white/10 backdrop-blur-md p-4 rounded-xl text-white text-sm text-center max-w-md w-full border border-white/10" onClick={(e) => e.stopPropagation()}>
                     {lightboxItem.text}
@@ -90,7 +91,12 @@ export default function UpdatesPage() {
                              onClick={() => setLightboxItem({ src: `${process.env.NEXT_PUBLIC_IMAGE_BASE_URL}${upd.image_url}`, text: upd.update_text })}>
                             <div className="w-[4.5rem] h-[4.5rem] rounded-full p-[3px] bg-gradient-to-tr from-green-400 via-emerald-500 to-teal-600 group-active:scale-95 transition-transform">
                                 <div className="w-full h-full rounded-full border-[3px] border-white dark:border-[#0a0a0a] overflow-hidden">
-                                    <img src={`${process.env.NEXT_PUBLIC_IMAGE_BASE_URL}${upd.image_url}`} className="w-full h-full object-cover" alt="Story" />
+                                    <img 
+                                        src={`${process.env.NEXT_PUBLIC_IMAGE_BASE_URL}${upd.image_url}`} 
+                                        className="w-full h-full object-cover" 
+                                        loading="lazy"
+                                        alt="Story" 
+                                    />
                                 </div>
                             </div>
                             <span className="text-[10px] font-bold text-center max-w-[4.5rem] truncate text-gray-600 dark:text-gray-400">
@@ -137,7 +143,11 @@ export default function UpdatesPage() {
                                 </div>
                                 {ann.image_url && (
                                     <div className="mb-3 w-full h-40 rounded-xl overflow-hidden relative cursor-pointer" onClick={() => setLightboxItem({ src: `${process.env.NEXT_PUBLIC_IMAGE_BASE_URL}${ann.image_url}`, text: ann.title })}>
-                                        <img src={`${process.env.NEXT_PUBLIC_IMAGE_BASE_URL}${ann.image_url}`} className="w-full h-full object-cover" />
+                                        <img 
+                                            src={`${process.env.NEXT_PUBLIC_IMAGE_BASE_URL}${ann.image_url}`} 
+                                            className="w-full h-full object-cover" 
+                                            loading="lazy"
+                                        />
                                         <div className="absolute inset-0 bg-black/10 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity"><ZoomIn className="text-white"/></div>
                                     </div>
                                 )}
@@ -160,7 +170,7 @@ export default function UpdatesPage() {
                                         <span className="text-xl font-black text-gray-800 dark:text-white">{d.getDate()}</span>
                                     </div>
                                     <div className="flex-grow bg-white dark:bg-[#151515] p-4 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm">
-                                        {evt.image_url && <img src={`${process.env.NEXT_PUBLIC_IMAGE_BASE_URL}${evt.image_url}`} className="w-full h-28 object-cover rounded-lg mb-3" />}
+                                        {evt.image_url && <img src={`${process.env.NEXT_PUBLIC_IMAGE_BASE_URL}${evt.image_url}`} className="w-full h-28 object-cover rounded-lg mb-3" loading="lazy" />}
                                         <h3 className="text-sm font-bold text-gray-900 dark:text-white">{evt.title}</h3>
                                         <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 line-clamp-2">{evt.description}</p>
                                     </div>
@@ -172,7 +182,50 @@ export default function UpdatesPage() {
 
             </AnimatePresence>
         </div>
-    </div>
+      </div>
     </div>
   );
+}
+
+// --- SKELETON COMPONENT ---
+function UpdatesSkeleton() {
+    return (
+        <div className="min-h-screen bg-[#F2F6FA] dark:bg-[#0a0a0a] p-4 space-y-6">
+            {/* Header Skeleton */}
+            <div className="flex items-center gap-3 py-4 border-b border-gray-200 dark:border-gray-800">
+                <div className="w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-800 skeleton" />
+                <div className="h-6 w-32 bg-gray-200 dark:bg-gray-800 rounded skeleton" />
+            </div>
+
+            {/* Stories Skeleton */}
+            <div className="flex gap-4 overflow-hidden">
+                {[1,2,3,4].map(i => (
+                    <div key={i} className="flex flex-col items-center gap-2">
+                        <div className="w-[4.5rem] h-[4.5rem] rounded-full bg-gray-200 dark:bg-gray-800 skeleton" />
+                        <div className="w-10 h-2 bg-gray-200 dark:bg-gray-800 rounded skeleton" />
+                    </div>
+                ))}
+            </div>
+
+            {/* Tabs Skeleton */}
+            <div className="bg-gray-200 dark:bg-gray-800 h-10 rounded-xl skeleton w-full" />
+
+            {/* Feed Skeleton */}
+            <div className="space-y-4">
+                {[1, 2].map((i) => (
+                    <div key={i} className="bg-white dark:bg-[#151515] p-5 rounded-[1.5rem] border border-gray-100 dark:border-gray-800 space-y-3">
+                        <div className="flex justify-between">
+                            <div className="w-16 h-4 bg-gray-200 dark:bg-gray-800 rounded skeleton" />
+                            <div className="w-10 h-3 bg-gray-200 dark:bg-gray-800 rounded skeleton" />
+                        </div>
+                        <div className="w-full h-32 bg-gray-200 dark:bg-gray-800 rounded-xl skeleton" />
+                        <div className="space-y-2">
+                            <div className="w-3/4 h-4 bg-gray-200 dark:bg-gray-800 rounded skeleton" />
+                            <div className="w-full h-3 bg-gray-200 dark:bg-gray-800 rounded skeleton" />
+                        </div>
+                    </div>
+                ))}
+            </div>
+        </div>
+    )
 }

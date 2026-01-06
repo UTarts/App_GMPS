@@ -5,12 +5,18 @@ const nextConfig = {
       {
         protocol: 'http',
         hostname: 'localhost',
-        port: '8080', // Match your PHP server port
-        pathname: '/GMPSPROJECT/**', // Allow images from your project folder
+        port: '8080',
+        pathname: '/GMPSPROJECT/**',
       },
       {
         protocol: 'https',
-        hostname: 'utarts.in', // Allow your logo if hosted externally
+        hostname: 'utarts.in',
+      },
+      // THIS IS THE CRITICAL PART FOR YOUR LIVE IMAGES
+      {
+        protocol: 'https',
+        hostname: 'govindmadhav.com', 
+        pathname: '/**',
       }
     ],
   },

@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from 'react';
 import { useAuth } from "../../context/AuthContext";
+import { useAppModal } from "../../context/ModalContext"; // Import Global Modal
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Check, X, ChevronLeft, ChevronRight, Calendar as CalendarIcon, 
@@ -11,11 +12,12 @@ import { useRouter } from 'next/navigation';
 
 export default function AttendancePage() {
   const { user } = useAuth();
+  const { showModal } = useAppModal(); // Use Modal Hook
   const router = useRouter();
   
   // --- STATE MANAGEMENT ---
   const [view, setView] = useState('dashboard'); // 'dashboard', 'taking', 'history', 'edit'
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true); // Start with loading true
   
   // Data State
   const [students, setStudents] = useState([]);
@@ -30,21 +32,19 @@ export default function AttendancePage() {
   const [calMonth, setCalMonth] = useState(new Date().getMonth()); 
   const [calYear, setCalYear] = useState(new Date().getFullYear());
 
-  // --- MODAL STATE ---
-  const [modalConfig, setModalConfig] = useState({
-    isOpen: false, title: "", message: "", type: "neutral", onConfirm: null
-  });
-
   // --- INITIAL LOAD ---
   useEffect(() => {
     if (user?.role === 'teacher' && user?.assigned_class_id) {
         fetchCalendarData();
+    } else {
+        setLoading(false);
     }
   }, [user, calMonth, calYear]);
 
   // --- API CALLS ---
 
   const fetchCalendarData = async () => {
+    setLoading(true);
     try {
         const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/attendance_teacher.php`, {
             method: 'POST',
@@ -58,6 +58,7 @@ export default function AttendancePage() {
         const json = await res.json();
         if(json.status === 'success') setCalendarData(json.data);
     } catch (e) { console.error(e); }
+    finally { setLoading(false); }
   };
 
   const startAttendanceSession = async (dateToUse = selectedDate, mode = 'taking') => {
@@ -123,13 +124,14 @@ export default function AttendancePage() {
   // --- ACTIONS ---
 
   const requestMarkHoliday = () => {
-      setModalConfig({
-          isOpen: true,
-          title: "Mark as Holiday?",
-          message: `Are you sure you want to mark ${new Date(selectedDate).toLocaleDateString()} as a Holiday? This will override any attendance taken.`,
-          type: "danger",
-          onConfirm: executeMarkHoliday
-      });
+      showModal(
+          "Mark as Holiday?",
+          `Are you sure you want to mark ${new Date(selectedDate).toLocaleDateString()} as a Holiday? This will override any attendance taken.`,
+          "danger",
+          executeMarkHoliday,
+          "Confirm",
+          "Cancel"
+      );
   };
 
   const executeMarkHoliday = async () => {
@@ -148,7 +150,6 @@ export default function AttendancePage() {
       } catch (e) { console.error("Error marking holiday"); }
       finally { 
           setLoading(false); 
-          setModalConfig(prev => ({ ...prev, isOpen: false })); 
       }
   };
 
@@ -217,7 +218,6 @@ export default function AttendancePage() {
         if (data && (data.status === 'taken' || data.status === 'holiday')) {
             const dateObj = new Date(dateStr);
             const dayName = dateObj.toLocaleDateString('en-US', { weekday: 'long' });
-            const niceDate = `${d} ${dateObj.toLocaleDateString('en-US', { month: 'short' })}`;
             
             // Calculate Stats
             const present = data.stats?.present || 0;
@@ -279,6 +279,8 @@ export default function AttendancePage() {
     return historyItems.reverse();
   };
 
+  if (loading) return <AttendanceSkeleton />;
+
   if (!user || user.role !== 'teacher' || !user.assigned_class_id) {
       return <div className="flex h-screen items-center justify-center text-gray-500">Access Denied</div>;
   }
@@ -286,48 +288,6 @@ export default function AttendancePage() {
   return (
     <div className="min-h-screen bg-[#F2F6FA] dark:bg-[#0a0a0a] text-gray-800 dark:text-gray-100 font-sans pb-24 relative">
       
-      {/* --- CUSTOM APP MODAL --- */}
-      <AnimatePresence>
-        {modalConfig.isOpen && (
-            <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
-                <motion.div 
-                    initial={{ opacity: 0, scale: 0.9 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, scale: 0.9 }}
-                    className="bg-white dark:bg-[#151515] rounded-[2rem] p-6 shadow-2xl w-full max-w-sm border border-gray-100 dark:border-gray-800"
-                >
-                    <div className={`w-12 h-12 rounded-full flex items-center justify-center mb-4 ${
-                        modalConfig.type === 'danger' ? 'bg-red-100 text-red-600' : 'bg-blue-100 text-blue-600'
-                    }`}>
-                        {modalConfig.type === 'danger' ? <AlertTriangle size={24} /> : <AlertCircle size={24} />}
-                    </div>
-                    
-                    <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-2">{modalConfig.title}</h3>
-                    <p className="text-sm text-gray-500 dark:text-gray-400 mb-6 leading-relaxed">
-                        {modalConfig.message}
-                    </p>
-                    
-                    <div className="flex gap-3">
-                        <button 
-                            onClick={() => setModalConfig(prev => ({ ...prev, isOpen: false }))}
-                            className="flex-1 py-3 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-xl font-bold text-sm"
-                        >
-                            Cancel
-                        </button>
-                        <button 
-                            onClick={modalConfig.onConfirm}
-                            className={`flex-1 py-3 text-white rounded-xl font-bold text-sm shadow-lg ${
-                                modalConfig.type === 'danger' ? 'bg-red-600 shadow-red-500/30' : 'bg-blue-600 shadow-blue-500/30'
-                            }`}
-                        >
-                            Confirm
-                        </button>
-                    </div>
-                </motion.div>
-            </div>
-        )}
-      </AnimatePresence>
-
       {/* HEADER */}
       <div className="bg-white dark:bg-[#151515] p-4 sticky top-0 z-40 border-b border-gray-100 dark:border-gray-800 shadow-sm flex justify-between items-center">
           <div className="flex items-center gap-3">
@@ -446,7 +406,12 @@ export default function AttendancePage() {
                                     </div>
 
                                     <div className="w-28 h-28 rounded-full p-1 bg-gradient-to-tr from-blue-400 to-purple-500 mb-6 shadow-lg mt-8">
-                                        <img src={`${process.env.NEXT_PUBLIC_IMAGE_BASE_URL}${stu.profile_pic || 'GMPSimages/default_student.png'}`} className="w-full h-full rounded-full object-cover border-4 border-white dark:border-[#151515]" />
+                                        <img 
+                                            src={`${process.env.NEXT_PUBLIC_IMAGE_BASE_URL}${stu.profile_pic || 'GMPSimages/default_student.png'}`} 
+                                            className="w-full h-full rounded-full object-cover border-4 border-white dark:border-[#151515]"
+                                            alt={stu.name}
+                                            loading="lazy"
+                                        />
                                     </div>
                                     <h2 className="text-2xl font-black text-gray-900 dark:text-white mb-1">{stu.name}</h2>
                                     <div className="mb-8">
@@ -549,4 +514,38 @@ export default function AttendancePage() {
       </div>
     </div>
   );
+}
+
+// --- SKELETON COMPONENT ---
+function AttendanceSkeleton() {
+    return (
+        <div className="min-h-screen bg-[#F2F6FA] dark:bg-[#0a0a0a] pb-24 relative">
+            {/* Header Skeleton */}
+            <div className="bg-white dark:bg-[#151515] p-4 border-b border-gray-200 dark:border-gray-800 flex justify-between items-center">
+                <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-800 skeleton"></div>
+                    <div className="space-y-1">
+                        <div className="h-4 w-32 bg-gray-200 dark:bg-gray-800 rounded skeleton"></div>
+                        <div className="h-3 w-20 bg-gray-200 dark:bg-gray-800 rounded skeleton"></div>
+                    </div>
+                </div>
+                <div className="h-8 w-32 bg-gray-200 dark:bg-gray-800 rounded-lg skeleton"></div>
+            </div>
+
+            <div className="p-4 space-y-6">
+                {/* Calendar Widget Skeleton */}
+                <div className="bg-white dark:bg-[#151515] rounded-[1.5rem] p-5 border border-gray-200 dark:border-gray-800 h-80 skeleton"></div>
+
+                {/* Actions Skeleton */}
+                <div className="space-y-3">
+                    <div className="flex justify-between">
+                        <div className="h-6 w-32 bg-gray-200 dark:bg-gray-800 rounded skeleton"></div>
+                        <div className="h-6 w-16 bg-gray-200 dark:bg-gray-800 rounded-full skeleton"></div>
+                    </div>
+                    <div className="h-20 w-full bg-gray-200 dark:bg-gray-800 rounded-2xl skeleton"></div>
+                    <div className="h-16 w-full bg-gray-200 dark:bg-gray-800 rounded-2xl skeleton"></div>
+                </div>
+            </div>
+        </div>
+    )
 }

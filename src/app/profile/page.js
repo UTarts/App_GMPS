@@ -1,21 +1,25 @@
 "use client";
 import { useEffect, useState } from 'react';
 import { useAuth } from "../../context/AuthContext";
+import { useAppModal } from "../../context/ModalContext"; // Import Modal
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   LogOut, MapPin, Phone, User, Calendar as CalendarIcon, 
-  ChevronLeft, ChevronRight , ChevronUp, ChevronDown, Download
+  ChevronLeft, ChevronRight , ChevronUp, ChevronDown, Download, X
 } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
 export default function ProfilePage() {
   const { user, logout } = useAuth();
+  const { showModal } = useAppModal(); // Use Modal Hook
+  
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('overview'); 
   const [expandedExam, setExpandedExam] = useState(null); 
   const [selectedDay, setSelectedDay] = useState(new Date().toLocaleDateString('en-US', { weekday: 'long' }));
+  const [viewImage, setViewImage] = useState(null); // Lightbox state
 
   // Calendar State
   const getDaysInMonth = (month, year) => new Date(year, month + 1, 0).getDate();
@@ -38,6 +42,16 @@ export default function ProfilePage() {
     if (user) fetchData();
   }, [user]);
 
+  // --- APP-LIKE LOGOUT ---
+  const handleLogout = () => {
+    showModal(
+      "Logout", 
+      "Are you sure you want to log out?", 
+      "danger", 
+      () => logout()
+    );
+  };
+
   // --- HELPER: Convert Image URL to Base64 (Using Proxy) ---
   const getImageData = async (dbPath) => {
     if (!dbPath) return null;
@@ -57,7 +71,7 @@ export default function ProfilePage() {
     }
   };
 
-  // --- PDF GENERATION LOGIC ---
+  // --- PDF GENERATION LOGIC (UNCHANGED) ---
   const handleDownloadReport = async (exam) => {
      const doc = new jsPDF();
      const p = data.profile;
@@ -71,7 +85,6 @@ export default function ProfilePage() {
      else if (cls.match(/^(6|7|8|9|10|11|12)/)) style = 'Professional';
 
      // 2. Load Images (Async via Proxy)
-     // Note: dbPath is what is stored in DB, e.g. "GMPSimages/logo.png"
      const [logoBase64, profileBase64] = await Promise.all([
          getImageData('GMPSimages/GMPS.header.logo.png'), 
          getImageData(p.profile_pic)
@@ -84,17 +97,11 @@ export default function ProfilePage() {
 
      // --- HEADER (Universal) ---
      if (logoBase64) {
-        // Logo Found: Draw it centered
         const imgProps = doc.getImageProperties(logoBase64);
         const imgWidth = 80;
         const imgHeight = (imgProps.height * imgWidth) / imgProps.width;
         doc.addImage(logoBase64, 'PNG', (pageWidth - imgWidth)/2, 10, imgWidth, imgHeight);
-        
-        // Add Address below Logo just in case, or as subtitle
-        doc.setFontSize(9); doc.setTextColor(100);
-        // doc.text("Gondey, Pratapgarh, U.P.", pageWidth/2, 10 + imgHeight + 5, { align: 'center' }); // Optional if logo has it
      } else {
-        // Fallback Text
         doc.setFontSize(18); doc.setTextColor(0); doc.setFont("helvetica", "bold");
         doc.text("GOVIND MADHAV PUBLIC SCHOOL", pageWidth/2, 20, { align: 'center' });
         doc.setFontSize(12); doc.setFont("helvetica", "normal");
@@ -113,52 +120,39 @@ export default function ProfilePage() {
 
      // --- STYLE: PLAYFUL (Colorful & Adjusted) ---
      if (style === 'Playful') {
-         // Border
          doc.setDrawColor(255, 165, 0); 
          doc.setLineWidth(1.5);
          doc.rect(5, 5, pageWidth-10, pageHeight-10);
          
-         // Profile Box (Widened & Heightened)
          doc.setFillColor(255, 250, 224); 
          doc.roundedRect(10, yPos, pageWidth-20, 55, 3, 3, 'F');
          
-         // Profile Pic
          if(profileBase64) {
              doc.addImage(profileBase64, 'JPEG', 15, yPos+7, 40, 40);
          } else {
              doc.setDrawColor(200); doc.setFillColor(255);
-             doc.rect(15, yPos+7, 40, 40, 'FD'); // Placeholder
+             doc.rect(15, yPos+7, 40, 40, 'FD'); 
          }
 
          doc.setFontSize(10); doc.setTextColor(0, 100, 0); doc.setFont("helvetica", "bold");
          const col1 = 60, col2 = 120;
          const lineGap = 9;
          
-         // Left Column
          doc.text(`Name:`, col1, yPos+12); doc.setTextColor(0); doc.text(p.name, col1+15, yPos+12);
-         
          doc.setTextColor(0,100,0);
          doc.text(`Class:`, col1, yPos+12 + lineGap); doc.setTextColor(0); doc.text(p.class_name, col1+15, yPos+12 + lineGap);
-         
          doc.setTextColor(0,100,0);
          doc.text(`Roll No:`, col1, yPos+12 + lineGap*2); doc.setTextColor(0); doc.text(p.roll_no||'-', col1+15, yPos+12 + lineGap*2);
-         
          doc.setTextColor(0,100,0);
          doc.text(`DOB:`, col1, yPos+12 + lineGap*3); doc.setTextColor(0); doc.text(p.dob||'-', col1+15, yPos+12 + lineGap*3);
-         
-         // Right Column
          doc.setTextColor(0,100,0);
          doc.text(`Father:`, col2, yPos+12); doc.setTextColor(0); doc.text(p.father_name, col2+18, yPos+12);
-         
          doc.setTextColor(0,100,0);
          doc.text(`Mother:`, col2, yPos+12 + lineGap); doc.setTextColor(0); doc.text(p.mother_name, col2+18, yPos+12 + lineGap);
-         
          doc.setTextColor(0,100,0);
          doc.text(`Teacher:`, col2, yPos+12 + lineGap*2); doc.setTextColor(0); 
-         // Allow more space for teacher name
          doc.text(p.teacher_name, col2+18, yPos+12 + lineGap*2, { maxWidth: 50 }); 
 
-         // Table
          autoTable(doc, {
              startY: yPos + 60,
              head: [['Subject', 'Marks', 'Total']],
@@ -183,17 +177,12 @@ export default function ProfilePage() {
          doc.setFontSize(10); doc.setTextColor(50);
          const lineH = 10;
          
-         // Left
          doc.text(`Name:`, 20, yPos+12);  doc.setFont("helvetica", "bold"); doc.text(p.name, 45, yPos+12);
          doc.setFont("helvetica", "normal");
-         
          doc.text(`Class:`, 20, yPos+12+lineH); doc.setFont("helvetica", "bold"); doc.text(p.class_name, 45, yPos+12+lineH);
          doc.setFont("helvetica", "normal");
-         
          doc.text(`Roll No:`, 20, yPos+12+lineH*2); doc.text(`${p.roll_no||'-'}`, 45, yPos+12+lineH*2);
          doc.text(`DOB:`, 20, yPos+12+lineH*3); doc.text(`${p.dob||'-'}`, 45, yPos+12+lineH*3);
-         
-         // Middle
          doc.text(`Father:`, 90, yPos+12); doc.text(p.father_name, 110, yPos+12);
          doc.text(`Mother:`, 90, yPos+12+lineH); doc.text(p.mother_name, 110, yPos+12+lineH);
          doc.text(`Teacher:`, 90, yPos+12+lineH*2); doc.text(p.teacher_name, 110, yPos+12+lineH*2);
@@ -221,14 +210,12 @@ export default function ProfilePage() {
          }
 
          doc.setFont("times", "normal"); doc.setFontSize(11); doc.setTextColor(0);
-         
          const col1 = 20, col2 = 60, col3 = 100, col4 = 140;
          const r1=yPos+12, r2=yPos+24, r3=yPos+36;
 
          doc.text("Name:", col1, r1); doc.setFont("times", "bold"); doc.text(p.name.toUpperCase(), col2, r1); doc.setFont("times", "normal");
          doc.text("Class:", col1, r2); doc.text(p.class_name, col2, r2);
          doc.text("Roll No:", col1, r3); doc.text(`${p.roll_no||'-'}`, col2, r3);
-
          doc.text("Father:", col3, r1); doc.text(p.father_name, col4, r1);
          doc.text("Teacher:", col3, r2); doc.text(p.teacher_name, col4, r2);
          doc.text("DOB:", col3, r3); doc.text(`${p.dob||'-'}`, col4, r3);
@@ -245,7 +232,7 @@ export default function ProfilePage() {
          });
      }
 
-     // 5. Footer (Universal)
+     // Footer
      const finalY = doc.lastAutoTable.finalY + 30;
      doc.setFont("helvetica", "bold"); doc.setFontSize(10); doc.setTextColor(0);
      doc.text("Class Teacher", 20, finalY);
@@ -255,30 +242,25 @@ export default function ProfilePage() {
      doc.setFontSize(8); doc.setTextColor(150);
      doc.text("This is a computer-generated report card authorized by Govind Madhav Public School.", pageWidth/2, pageHeight - 10, { align: 'center' });
      
-     // Save
      doc.save(`${p.name}_${exam.name}_Report.pdf`);
   };
 
   // --- CALENDAR LOGIC ---
-
   const renderCalendar = () => {
       const daysCount = getDaysInMonth(calMonth, calYear);
       const firstDay = getFirstDayOfMonth(calMonth, calYear);
       const days = [];
 
-      // Empty slots for alignment
       for (let i = 0; i < firstDay; i++) days.push(<div key={`empty-${i}`} />);
 
-      // Days generation
       for (let d = 1; d <= daysCount; d++) {
           const dateStr = `${calYear}-${String(calMonth + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-          const status = data?.attendance_map?.[dateStr]; // 'present', 'absent', 'holiday'
+          const status = data?.attendance_map?.[dateStr]; 
           const dateObj = new Date(calYear, calMonth, d);
           const isSunday = dateObj.getDay() === 0;
           const isToday = dateStr === new Date().toISOString().split('T')[0];
 
           let bgColor = "bg-gray-50 dark:bg-gray-800 text-gray-700";
-          
           if (status === 'present') bgColor = "bg-green-100 text-green-700 border border-green-200";
           else if (status === 'absent') bgColor = "bg-red-100 text-red-700 border border-red-200";
           else if (status === 'holiday') bgColor = "bg-yellow-100 text-yellow-700 border border-yellow-200";
@@ -295,41 +277,33 @@ export default function ProfilePage() {
       return days;
   };
 
-  // Calculate Monthly Stats for the VIEWED month
   const getMonthlyStats = () => {
       let p = 0, total = 0;
       const daysCount = getDaysInMonth(calMonth, calYear);
-      
       for(let d=1; d<=daysCount; d++) {
           const dateStr = `${calYear}-${String(calMonth + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
           const status = data?.attendance_map?.[dateStr];
-          
           if (status === 'present') { p++; total++; }
           else if (status === 'absent') { total++; }
-          // Holidays and Sundays don't count towards 'Total Working Days' denominator
       }
       return { p, total, pct: total > 0 ? Math.round((p/total)*100) : 0 };
   };
 
   const currentStats = getMonthlyStats();
 
-  if (loading) return (
-    <div className="flex h-screen items-center justify-center bg-[#F2F6FA] dark:bg-[#0a0a0a]">
-      <div className="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-    </div>
-  );
+  // --- SKELETON LOADER ---
+  if (loading) return <ProfileSkeleton />;
 
   const p = data?.profile;
   const daysOfWeek = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
-  
   return (
     <div className="min-h-screen bg-[#F2F6FA] dark:bg-[#0a0a0a] text-gray-800 dark:text-gray-100 font-sans pb-24">
       
       {/* HEADER */}
       <div className="sticky top-0 z-40 bg-white/90 dark:bg-black/90 backdrop-blur-md border-b border-gray-200 dark:border-gray-800 px-5 py-4 flex justify-between items-center shadow-sm">
         <h1 className="text-xl font-bold text-gray-900 dark:text-white tracking-tight">My Profile</h1>
-        <button onClick={logout} className="flex items-center gap-2 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 px-3 py-1.5 rounded-full text-xs font-bold transition-colors hover:bg-red-100">
+        <button onClick={handleLogout} className="flex items-center gap-2 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 px-3 py-1.5 rounded-full text-xs font-bold transition-colors hover:bg-red-100 dark:hover:bg-red-900/30">
             <LogOut size={14} /> Logout
         </button>
       </div>
@@ -341,11 +315,13 @@ export default function ProfilePage() {
             <div className="bg-gradient-to-r from-orange-500 to-amber-600 rounded-[2rem] p-6 text-white shadow-xl shadow-orange-500/25 relative overflow-hidden">
                 <div className="absolute -right-10 -top-10 w-40 h-40 bg-white/10 rounded-full blur-3xl"></div>
                 <div className="relative z-10 flex flex-col items-center text-center">
-                    <div className="w-24 h-24 rounded-full border-4 border-white/30 p-1 mb-3">
+                    <div className="w-24 h-24 rounded-full border-4 border-white/30 p-1 mb-3 cursor-pointer" 
+                         onClick={() => setViewImage(p?.profile_pic ? `${process.env.NEXT_PUBLIC_IMAGE_BASE_URL}${p.profile_pic}` : null)}>
                         <img 
                             src={p?.profile_pic ? `${process.env.NEXT_PUBLIC_IMAGE_BASE_URL}${p.profile_pic}` : `${process.env.NEXT_PUBLIC_IMAGE_BASE_URL}GMPSimages/default_student.png`} 
                             className="w-full h-full rounded-full object-cover bg-gray-200" 
                             alt="Profile"
+                            loading="lazy"
                         />
                     </div>
                     <h2 className="text-2xl font-black leading-tight">{p?.name}</h2>
@@ -511,7 +487,35 @@ export default function ProfilePage() {
                 </motion.div>
             )}
         </AnimatePresence>
+
       </div>
+
+      {/* --- IMAGE LIGHTBOX MODAL --- */}
+      <AnimatePresence>
+        {viewImage && (
+          <motion.div
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] bg-black/95 backdrop-blur-md flex items-center justify-center p-4"
+            onClick={() => setViewImage(null)}
+          >
+            <button 
+              onClick={() => setViewImage(null)}
+              className="absolute top-6 right-6 w-10 h-10 bg-white/10 rounded-full text-white flex items-center justify-center z-20"
+            >
+              <X size={24} />
+            </button>
+            
+            <motion.img
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              src={viewImage}
+              className="max-w-full max-h-[80vh] rounded-lg shadow-2xl object-contain"
+              onClick={(e) => e.stopPropagation()} 
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
+
     </div>
   );
 }
@@ -526,4 +530,31 @@ function InfoRow({ label, value, icon: Icon }) {
             </div>
         </div>
     );
+}
+
+// --- SKELETON COMPONENT ---
+function ProfileSkeleton() {
+  return (
+    <div className="min-h-screen bg-[#F2F6FA] dark:bg-[#0a0a0a] pb-24">
+      {/* Header Skeleton */}
+      <div className="sticky top-0 z-40 bg-white/90 dark:bg-black/90 p-5 border-b border-gray-200 dark:border-gray-800 flex justify-between items-center">
+         <div className="h-6 w-32 bg-gray-200 dark:bg-gray-800 rounded skeleton"></div>
+         <div className="h-8 w-20 bg-gray-200 dark:bg-gray-800 rounded-full skeleton"></div>
+      </div>
+      
+      <div className="px-4 mt-6">
+         {/* Identity Card Skeleton */}
+         <div className="h-64 w-full bg-gray-200 dark:bg-gray-800 rounded-[2rem] skeleton mb-8"></div>
+         
+         {/* Tabs Skeleton */}
+         <div className="h-10 w-full bg-gray-200 dark:bg-gray-800 rounded-xl skeleton mb-6"></div>
+         
+         {/* Content Skeleton */}
+         <div className="space-y-4">
+            <div className="h-32 w-full bg-gray-200 dark:bg-gray-800 rounded-[1.5rem] skeleton"></div>
+            <div className="h-20 w-full bg-gray-200 dark:bg-gray-800 rounded-[1.5rem] skeleton"></div>
+         </div>
+      </div>
+    </div>
+  )
 }

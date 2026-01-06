@@ -4,7 +4,7 @@ import { useAuth } from "../../context/AuthContext";
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   ChevronLeft, BookOpen, AlertCircle, 
-  Clock, X, ZoomIn, Download, CheckCircle2 
+  Clock, X, ZoomIn, Download 
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -39,11 +39,7 @@ export default function WorkPage() {
     return acc;
   }, {});
 
-  if (loading) return (
-    <div className="flex h-screen items-center justify-center bg-[#F2F6FA] dark:bg-[#0a0a0a]">
-      <div className="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-    </div>
-  );
+  if (loading) return <WorkSkeleton />;
 
   return (
     <div className="min-h-screen bg-[#F2F6FA] dark:bg-[#0a0a0a] text-gray-800 dark:text-gray-100 font-sans pb-24 relative">
@@ -53,14 +49,14 @@ export default function WorkPage() {
         {lightboxSrc && (
           <motion.div 
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[60] bg-black/95 flex items-center justify-center p-4 backdrop-blur-sm"
+            className="fixed inset-0 z-[100] bg-black/95 flex items-center justify-center p-4 backdrop-blur-sm"
             onClick={() => setLightboxSrc(null)}
           >
             <button className="absolute top-6 right-6 text-white bg-white/10 p-2 rounded-full"><X size={24} /></button>
             <a 
                 href={lightboxSrc} 
                 download 
-                className="absolute bottom-10 bg-white text-black px-6 py-3 rounded-full flex items-center gap-2 font-bold shadow-lg"
+                className="absolute bottom-10 bg-white text-black px-6 py-3 rounded-full flex items-center gap-2 font-bold shadow-lg z-50"
                 onClick={(e) => e.stopPropagation()}
             >
                 <Download size={18} /> Download
@@ -86,14 +82,14 @@ export default function WorkPage() {
       <div className="px-4 mt-2">
         {Object.keys(groupedPosts).length === 0 ? (
             <div className="flex flex-col items-center justify-center pt-20 opacity-50">
-                <BookOpen size={48} className="mb-2" />
-                <p>No work updates yet.</p>
+                <BookOpen size={48} className="mb-2 text-gray-300" />
+                <p className="text-gray-400 font-medium">No work updates yet.</p>
             </div>
         ) : (
             Object.entries(groupedPosts).map(([date, dayPosts]) => (
                 <div key={date} className="mb-8 relative">
                     
-                    {/* STICKY DATE HEADER (Fixed z-index and top position) */}
+                    {/* STICKY DATE HEADER */}
                     <div className="sticky top-[80px] z-40 py-4 flex justify-center pointer-events-none">
                         <span className="bg-gray-800/90 dark:bg-gray-700/90 backdrop-blur-md text-white text-xs font-bold px-4 py-1.5 rounded-full shadow-lg border border-white/10">
                             {date}
@@ -116,6 +112,7 @@ export default function WorkPage() {
                                     key={post.post_id}
                                     initial={{ opacity: 0, y: 10 }}
                                     whileInView={{ opacity: 1, y: 0 }}
+                                    viewport={{ once: true }}
                                     transition={{ delay: i * 0.05 }}
                                     className="bg-white dark:bg-[#151515] rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 overflow-hidden"
                                 >
@@ -126,6 +123,7 @@ export default function WorkPage() {
                                                 src={`${process.env.NEXT_PUBLIC_IMAGE_BASE_URL}${post.teacher_pic || 'GMPSimages/default-teacher.jpg'}`} 
                                                 className="w-9 h-9 rounded-full object-cover border border-gray-200 dark:border-gray-700"
                                                 alt={post.teacher_name}
+                                                loading="lazy"
                                             />
                                             <div>
                                                 <h3 className="text-xs font-bold text-gray-900 dark:text-white leading-none">{post.teacher_name}</h3>
@@ -142,7 +140,6 @@ export default function WorkPage() {
                                     <div className="p-0">
                                         {sortedItems.map((item, idx) => (
                                             <div key={idx} className="relative pl-5 pr-4 py-4 border-b border-gray-50 dark:border-gray-800 last:border-0">
-                                                
                                                 
                                                 {/* Dot Badge */}
                                                 <span className={`absolute left-[5px] top-5 w-3 h-3 rounded-full border-2 border-white dark:border-[#151515] z-10 ${
@@ -174,7 +171,12 @@ export default function WorkPage() {
                                                         {item.attachments.map((src, k) => (
                                                             <div key={k} className="flex-shrink-0 w-20 h-20 rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700 relative group cursor-pointer"
                                                                  onClick={() => setLightboxSrc(`${process.env.NEXT_PUBLIC_IMAGE_BASE_URL}${src}`)}>
-                                                                <img src={`${process.env.NEXT_PUBLIC_IMAGE_BASE_URL}${src}`} className="w-full h-full object-cover" alt="Attachment" />
+                                                                <img 
+                                                                    src={`${process.env.NEXT_PUBLIC_IMAGE_BASE_URL}${src}`} 
+                                                                    className="w-full h-full object-cover" 
+                                                                    alt="Attachment" 
+                                                                    loading="lazy"
+                                                                />
                                                                 <div className="absolute inset-0 bg-black/10 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"><ZoomIn size={16} className="text-white" /></div>
                                                             </div>
                                                         ))}
@@ -231,4 +233,46 @@ export default function WorkPage() {
       </div>
     </div>
   );
+}
+
+// --- SKELETON COMPONENT ---
+function WorkSkeleton() {
+    return (
+        <div className="min-h-screen bg-[#F2F6FA] dark:bg-[#0a0a0a] p-4 space-y-6">
+            {/* Header Skeleton */}
+            <div className="flex items-center gap-3 py-4 border-b border-gray-200 dark:border-gray-800">
+                <div className="w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-800 skeleton" />
+                <div className="h-6 w-32 bg-gray-200 dark:bg-gray-800 rounded skeleton" />
+            </div>
+
+            {/* Date Pill Skeleton */}
+            <div className="flex justify-center py-2">
+                <div className="h-6 w-24 bg-gray-200 dark:bg-gray-800 rounded-full skeleton" />
+            </div>
+
+            {/* Post Card Skeleton */}
+            {[1, 2].map((_, i) => (
+                <div key={i} className="bg-white dark:bg-[#151515] rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 overflow-hidden">
+                    <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-800 flex items-center gap-3">
+                        <div className="w-9 h-9 rounded-full bg-gray-200 dark:bg-gray-800 skeleton" />
+                        <div className="space-y-1">
+                            <div className="h-3 w-24 bg-gray-200 dark:bg-gray-800 rounded skeleton" />
+                            <div className="h-2 w-16 bg-gray-200 dark:bg-gray-800 rounded skeleton" />
+                        </div>
+                    </div>
+                    <div className="p-4 space-y-4">
+                        <div className="space-y-2">
+                            <div className="h-4 w-3/4 bg-gray-200 dark:bg-gray-800 rounded skeleton" />
+                            <div className="h-3 w-full bg-gray-200 dark:bg-gray-800 rounded skeleton" />
+                            <div className="h-3 w-5/6 bg-gray-200 dark:bg-gray-800 rounded skeleton" />
+                        </div>
+                        <div className="space-y-2">
+                            <div className="h-4 w-1/2 bg-gray-200 dark:bg-gray-800 rounded skeleton" />
+                            <div className="h-3 w-full bg-gray-200 dark:bg-gray-800 rounded skeleton" />
+                        </div>
+                    </div>
+                </div>
+            ))}
+        </div>
+    );
 }

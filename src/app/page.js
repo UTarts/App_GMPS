@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import { useAuth } from "../context/AuthContext";
 import { useTheme } from "../context/ThemeContext";
+import { useAppModal } from "../context/ModalContext"; // Import Modal
 import { motion, AnimatePresence } from "framer-motion";
 import { 
   Moon, Sun, Bell, BookOpen, Image as ImageIcon, Calendar, 
@@ -12,11 +13,40 @@ import Link from 'next/link';
 export default function Home() {
   const { user } = useAuth();
   const { theme, toggleTheme } = useTheme();
+  const { showModal } = useAppModal(); // Use Modal Hook
   
   const [data, setData] = useState(null);
   const [currentSlide, setCurrentSlide] = useState(0);
   const [loading, setLoading] = useState(true);
   const [viewImage, setViewImage] = useState(null);
+
+  // --- BACK BUTTON INTERCEPTOR ---
+  useEffect(() => {
+    // 1. Push a dummy state to history so 'popstate' can fire
+    window.history.pushState(null, null, window.location.pathname);
+
+    const handlePopState = (event) => {
+      // 2. Prevent the browser from actually going back
+      window.history.pushState(null, null, window.location.pathname);
+      
+      // 3. Show Exit Modal
+      showModal(
+        "Exit App?", 
+        "Are you sure you want to exit the application?", 
+        "danger", 
+        () => {
+           // If they confirm, try to close window (works in TWA/PWA)
+           // or redirect to a generic exit page if window.close is blocked
+           try { window.close(); } catch(e) { console.log('Close blocked'); }
+        },
+        "Exit App",
+        "Stay"
+      );
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [showModal]);
 
   // 1. Fetch Data
   useEffect(() => {
@@ -47,7 +77,7 @@ export default function Home() {
         setLoading(false);
       }
     }
-    fetchData();
+    if (user) fetchData(); // Only fetch if user exists
   }, [user]);
 
   // 2. Slideshow Timer
@@ -72,45 +102,33 @@ export default function Home() {
         console.log('Error sharing', error);
       }
     } else {
-      alert("Share not supported on this browser.");
+      showModal("Share", "Share not supported on this browser.", "neutral");
     }
   };
 
   // --- LOGIC HELPERS ---
-  
-  // A. Profile Card Color based on Role
   const getCardStyle = () => {
-    if (user?.role === 'admin') return "from-slate-800 to-black"; // Dark for Admin
-    if (user?.role === 'teacher') return "from-indigo-600 to-purple-600"; // Purple for Teacher
-    return "from-orange-500 to-amber-500"; // Orange for Student
+    if (user?.role === 'admin') return "from-slate-800 to-black"; 
+    if (user?.role === 'teacher') return "from-indigo-600 to-purple-600"; 
+    return "from-orange-500 to-amber-500"; 
   };
 
-  // B. Badge Text Logic
   const getBadgeText = () => {
-    if (user?.role === 'admin') {
-      return user?.level == 1 ? 'Super Admin' : 'Admin';
-    }
+    if (user?.role === 'admin') return user?.level == 1 ? 'Super Admin' : 'Admin';
     if (user?.role === 'teacher') {
-      // If API returned a class name, they are a class teacher
       if (data?.user_details?.class_name) return data.user_details.class_name;
       return 'Subject Teacher';
     }
-    // Students
     return data?.user_details?.class_name || 'Student';
   };
 
-  // C. Name Display (Honorifics for Staff)
   const getDisplayName = () => {
     if (!user?.name) return 'User';
-    if (user?.role === 'student') return user.name.split(' ')[0]; // Just First Name
-    return user.name.split(' ').slice(0, 2).join(' '); // "Mr. Sharma"
+    if (user?.role === 'student') return user.name.split(' ')[0]; 
+    return user.name.split(' ').slice(0, 2).join(' '); 
   };
 
-  if (loading) return (
-    <div className="flex h-screen items-center justify-center bg-[#F2F6FA] dark:bg-[#0a0a0a]">
-      <div className="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-    </div>
-  );
+  if (loading) return <HomeSkeleton />;
 
   return (
     <div className="min-h-screen bg-[#F2F6FA] dark:bg-[#0a0a0a] text-gray-800 dark:text-gray-100 font-sans overflow-x-hidden">
@@ -121,6 +139,7 @@ export default function Home() {
             <img 
               src={`${process.env.NEXT_PUBLIC_IMAGE_BASE_URL}GMPSimages/logonew.webp`} 
               alt="GMPS Logo" 
+              loading="lazy"
               className="h-10 w-10 rounded-full object-contain border border-gray-100 dark:border-gray-800 shadow-sm"
             />
             <div className="flex flex-col">
@@ -173,6 +192,7 @@ export default function Home() {
                       <img 
                           src={user?.pic ? `${process.env.NEXT_PUBLIC_IMAGE_BASE_URL}${user.pic}` : `${process.env.NEXT_PUBLIC_IMAGE_BASE_URL}GMPSimages/default_student.png`}
                           alt="Profile"
+                          loading="lazy"
                           className="w-full h-full object-cover"
                       />
                   </div>
@@ -232,6 +252,7 @@ export default function Home() {
                  <img 
                     src={`${process.env.NEXT_PUBLIC_IMAGE_BASE_URL}${data.whatsToday.image_url}`} 
                     className="w-full h-full object-cover" 
+                    loading="lazy"
                     alt="Today's Special"
                  />
               </div>
@@ -254,7 +275,7 @@ export default function Home() {
               <Link 
                 href={
                     user?.role === 'admin' ? "/admin/posts" : 
-                    user?.role === 'teacher' ? "/teacher-posts?source=twa" : 
+                    user?.role === 'teacher' ? "/teacher?source=twa" : 
                     "/work?source=twa"
                 }
                 className="block w-full bg-[#3B82F6] rounded-[2rem] p-6 text-white shadow-xl shadow-blue-500/25 relative overflow-hidden group"
@@ -271,7 +292,7 @@ export default function Home() {
                        {/* Title Logic */}
                        <h4 className="text-xl font-bold">
                            {user?.role === 'admin' ? 'Post Update' : 
-                            user?.role === 'teacher' ? 'Create Post' : 
+                            user?.role === 'teacher' ? 'Teacher App' : 
                             'Daily Work'}
                        </h4>
                        
@@ -314,8 +335,7 @@ export default function Home() {
          </div>
       </div>
 
-      {/* --- 6. CLASS TOPPERS (HIDDEN FOR SUBJECT TEACHERS & ADMINS) --- */}
-      {/* Only show if: show_toppers is true (Student/ClassTeacher) AND user is NOT Admin */}
+      {/* --- 6. CLASS TOPPERS --- */}
       {data?.show_toppers && user?.role !== 'admin' && data?.toppers?.length > 0 && (
         <div className="mb-8 px-4">
            <div className="flex justify-between items-center mb-3 ml-1">
@@ -340,6 +360,7 @@ export default function Home() {
                       <img 
                         src={`${process.env.NEXT_PUBLIC_IMAGE_BASE_URL}${top.image_url || 'GMPSimages/default_student.png'}`} 
                         className="w-full h-full rounded-full object-cover border border-white dark:border-[#151515]"
+                        loading="lazy"
                         alt={top.student_name}
                       />
                     </div>
@@ -357,7 +378,7 @@ export default function Home() {
         </div>
       )}
 
-      {/* --- 7. NOTICE BOARD (Clean & Modern) --- */}
+      {/* --- 7. NOTICE BOARD --- */}
       <div className="px-4 mb-8">
          <div className="flex justify-between items-end mb-3 ml-1">
             <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest">Notice Board</h3>
@@ -367,12 +388,11 @@ export default function Home() {
          </div>
 
          <div className="flex flex-col gap-3">
-            {/* ANNOUNCEMENTS */}
             {data?.announcements?.map((ann, i) => (
                 <div key={`ann-${i}`} className="bg-white dark:bg-[#151515] p-4 rounded-2xl shadow-[0_2px_10px_rgba(0,0,0,0.03)] border border-gray-50 dark:border-gray-800 flex gap-4 items-start">
                     {ann.image_url ? (
                         <div className="w-14 h-14 shrink-0 rounded-xl overflow-hidden bg-gray-100">
-                            <img src={`${process.env.NEXT_PUBLIC_IMAGE_BASE_URL}${ann.image_url}`} className="w-full h-full object-cover" alt="Notice" />
+                            <img src={`${process.env.NEXT_PUBLIC_IMAGE_BASE_URL}${ann.image_url}`} className="w-full h-full object-cover" loading="lazy" alt="Notice" />
                         </div>
                     ) : (
                        <div className="w-14 h-14 shrink-0 rounded-xl bg-orange-50 dark:bg-orange-900/20 flex items-center justify-center text-orange-500">
@@ -385,18 +405,6 @@ export default function Home() {
                            <span className="text-[9px] font-bold text-orange-500 bg-orange-50 dark:bg-orange-900/30 px-2 py-0.5 rounded-full">NOTICE</span>
                         </div>
                         <p className="text-xs text-gray-500 dark:text-gray-400 line-clamp-2 mt-0.5">{ann.content}</p>
-                    </div>
-                </div>
-            ))}
-
-            {/* DAILY UPDATES */}
-            {data?.updates?.map((upd, i) => (
-                <div key={`upd-${i}`} className="bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/10 dark:to-emerald-900/10 p-4 rounded-2xl border border-green-100 dark:border-green-900/20 flex gap-3 items-center">
-                    <div className="shrink-0 w-8 h-8 rounded-full bg-green-100 dark:bg-green-900/40 flex items-center justify-center text-green-600">
-                        <CheckCircle2 size={16} />
-                    </div>
-                    <div>
-                        <p className="text-xs font-semibold text-gray-800 dark:text-gray-200 leading-tight line-clamp-2">{upd.update_text}</p>
                     </div>
                 </div>
             ))}
@@ -418,13 +426,13 @@ export default function Home() {
             </Link>
          </div>
 
-         {/* 1 Main + 2 Side Images Layout */}
          <div className="grid grid-cols-3 gap-2 h-48">
             <div className="col-span-2 relative rounded-2xl overflow-hidden bg-gray-200 dark:bg-gray-800">
                {data?.gallery && data.gallery[0] && (
                   <img 
                     src={`${process.env.NEXT_PUBLIC_IMAGE_BASE_URL}${data.gallery[0].image_url}`} 
                     className="w-full h-full object-cover" 
+                    loading="lazy"
                     alt="Gallery"
                   />
                )}
@@ -436,6 +444,7 @@ export default function Home() {
                      <img 
                        src={`${process.env.NEXT_PUBLIC_IMAGE_BASE_URL}${data.gallery[1].image_url}`} 
                        className="w-full h-full object-cover" 
+                       loading="lazy"
                        alt="Gallery"
                      />
                   )}
@@ -445,6 +454,7 @@ export default function Home() {
                      <img 
                        src={`${process.env.NEXT_PUBLIC_IMAGE_BASE_URL}${data.gallery[2].image_url}`} 
                        className="w-full h-full object-cover" 
+                       loading="lazy"
                        alt="Gallery"
                      />
                   )}
@@ -468,6 +478,7 @@ export default function Home() {
                      <img 
                        src={`${process.env.NEXT_PUBLIC_IMAGE_BASE_URL}${th.image_url}`} 
                        className="w-10 h-10 rounded-full object-cover border border-white/20"
+                       loading="lazy"
                        alt={th.name}
                      />
                      <div>
@@ -481,7 +492,7 @@ export default function Home() {
          </div>
       </div>
       
-      {/* --- 10. FEEDBACK FORM (Student Only) --- */}
+      {/* --- 10. FEEDBACK FORM --- */}
       {user?.role === 'student' && (
         <div className="px-4 mb-12">
            <div className="bg-gradient-to-br from-emerald-500 to-teal-700 rounded-[1.5rem] p-6 text-white shadow-lg shadow-emerald-500/20 relative overflow-hidden">
@@ -575,7 +586,7 @@ export default function Home() {
               animate={{ scale: 1, opacity: 1 }}
               src={viewImage}
               className="max-w-full max-h-[80vh] rounded-lg shadow-2xl object-contain"
-              onClick={(e) => e.stopPropagation()} // Prevent closing when clicking image
+              onClick={(e) => e.stopPropagation()} 
             />
           </motion.div>
         )}
@@ -583,4 +594,42 @@ export default function Home() {
 
     </div>
   );
+}
+
+// --- SKELETON LOADER COMPONENT ---
+function HomeSkeleton() {
+  return (
+    <div className="min-h-screen bg-[#F2F6FA] dark:bg-[#0a0a0a] p-4 space-y-6">
+        {/* Header Skeleton */}
+        <div className="flex justify-between items-center py-2">
+            <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-gray-200 dark:bg-gray-800 skeleton" />
+                <div className="space-y-1">
+                    <div className="w-32 h-4 bg-gray-200 dark:bg-gray-800 rounded skeleton" />
+                    <div className="w-20 h-2 bg-gray-200 dark:bg-gray-800 rounded skeleton" />
+                </div>
+            </div>
+            <div className="flex gap-2">
+                <div className="w-9 h-9 rounded-full bg-gray-200 dark:bg-gray-800 skeleton" />
+                <div className="w-9 h-9 rounded-full bg-gray-200 dark:bg-gray-800 skeleton" />
+            </div>
+        </div>
+
+        {/* Profile Card Skeleton */}
+        <div className="h-40 rounded-[2.5rem] bg-gray-200 dark:bg-gray-800 skeleton w-full" />
+
+        {/* Slideshow Skeleton */}
+        <div className="h-48 rounded-[1.5rem] bg-gray-200 dark:bg-gray-800 skeleton w-full" />
+
+        {/* What's Today Skeleton */}
+        <div className="h-48 rounded-[2rem] bg-gray-200 dark:bg-gray-800 skeleton w-full" />
+
+        {/* Dashboard Grid Skeleton */}
+        <div className="grid grid-cols-2 gap-3">
+            <div className="h-32 rounded-[2rem] bg-gray-200 dark:bg-gray-800 skeleton col-span-2" />
+            <div className="h-32 rounded-[1.5rem] bg-gray-200 dark:bg-gray-800 skeleton" />
+            <div className="h-32 rounded-[1.5rem] bg-gray-200 dark:bg-gray-800 skeleton" />
+        </div>
+    </div>
+  )
 }

@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState, useRef } from 'react';
 import { useAuth } from "../../context/AuthContext";
+import { useAppModal } from "../../context/ModalContext"; // Import Global Modal
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter } from 'next/navigation';
 import { 
@@ -54,7 +55,7 @@ function CustomSelect({ options, value, onChange, placeholder, allowManual = fal
                             <input 
                                 type="text" 
                                 placeholder="Search..." 
-                                className="w-full text-xs p-2 bg-gray-50 dark:bg-black rounded-lg outline-none dark:text-white"
+                                className="w-full text-xs p-2 bg-gray-50 dark:bg-black rounded-lg outline-none text-gray-800 dark:text-white"
                                 value={search}
                                 onChange={(e) => setSearch(e.target.value)}
                                 autoFocus
@@ -90,15 +91,11 @@ function CustomSelect({ options, value, onChange, placeholder, allowManual = fal
 
 export default function TeacherPage() {
     const { user, logout } = useAuth();
+    const { showModal } = useAppModal(); // Use Global Modal
     const router = useRouter();
     const [dashboardData, setDashboardData] = useState(null);
     const [activeSection, setActiveSection] = useState('profile');
     const [loading, setLoading] = useState(true);
-
-    const [modalConfig, setModalConfig] = useState({ isOpen: false, type: '', title: '', message: '', onConfirm: null });
-    const showConfirm = (title, message, onConfirm) => setModalConfig({ isOpen: true, type: 'confirm', title, message, onConfirm });
-    const showSuccess = (title, message) => setModalConfig({ isOpen: true, type: 'success', title, message, onConfirm: () => setModalConfig({ ...modalConfig, isOpen: false }) });
-    const closeModal = () => setModalConfig({ ...modalConfig, isOpen: false });
 
     useEffect(() => {
         async function init() {
@@ -114,63 +111,67 @@ export default function TeacherPage() {
         init();
     }, [user]);
 
-    if(loading || !dashboardData) return <div className="flex h-screen items-center justify-center bg-gray-50 dark:bg-[#0a0a0a]"><div className="w-8 h-8 border-4 border-blue-600 rounded-full animate-spin border-t-transparent"></div></div>;
+    // --- LOGOUT HANDLER ---
+    const handleLogout = () => {
+        showModal("Logout", "Are you sure you want to log out?", "danger", logout);
+    };
+
+    if(loading || !dashboardData) return <TeacherSkeleton />;
 
     const { profile, students, student_count, all_classes } = dashboardData;
     const isClassTeacher = !!profile.assigned_class_id;
     const classId = profile.assigned_class_id;
 
+    // --- HEADER (FIXED & MINIMAL) ---
     const Header = () => (
-        <div className="bg-white dark:bg-[#151515] px-5 py-3 border-b border-gray-100 dark:border-gray-800 sticky top-0 z-30 flex justify-between items-center shadow-sm">
-            <div className="flex items-center gap-3">
-                <img src={`${process.env.NEXT_PUBLIC_IMAGE_BASE_URL}${profile.profile_pic}`} className="w-10 h-10 rounded-full object-cover border border-gray-200 dark:border-gray-700 shadow-sm"/>
-                <div>
-                    <h1 className="text-sm font-black text-gray-800 dark:text-white leading-tight">{profile.name}</h1>
-                    <p className="text-[10px] font-bold text-blue-500 uppercase tracking-wider">{isClassTeacher ? 'Class Teacher' : 'Subject Teacher'}</p>
-                </div>
-            </div>
-            <button onClick={() => showConfirm('Logout?', 'Are you sure?', logout)} className="p-2 bg-red-50 text-red-600 rounded-full hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors"><LogOut size={18} /></button>
+        <div className="sticky top-0 z-40 bg-white/90 dark:bg-black/90 backdrop-blur-md border-b border-gray-200 dark:border-gray-800 px-5 py-4 flex justify-between items-center shadow-sm">
+            <h1 className="text-xl font-bold text-gray-900 dark:text-white tracking-tight">Teacher Profile</h1>
+            <button 
+                onClick={handleLogout} 
+                className="flex items-center gap-2 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 px-3 py-1.5 rounded-full text-xs font-bold transition-colors hover:bg-red-100 dark:hover:bg-red-900/30"
+            >
+                <LogOut size={14} /> Logout
+            </button>
         </div>
     );
 
     return (
-        <div className="min-h-screen bg-[#F2F6FA] dark:bg-[#0a0a0a] font-sans pb-24 relative flex flex-col h-screen overflow-hidden">
-            {/* Modal Logic */}
-            <AnimatePresence>
-                {modalConfig.isOpen && (
-                    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
-                        <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }} className="bg-white dark:bg-[#151515] rounded-2xl p-6 shadow-2xl w-full max-w-sm border border-gray-100 dark:border-gray-800">
-                            <div className={`w-12 h-12 rounded-full flex items-center justify-center mb-4 ${modalConfig.type === 'confirm' ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-600'}`}>{modalConfig.type === 'confirm' ? <AlertCircle size={24} /> : <CheckCircle size={24} />}</div>
-                            <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-2">{modalConfig.title}</h3>
-                            <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">{modalConfig.message}</p>
-                            <div className="flex gap-3">
-                                {modalConfig.type === 'confirm' && <button onClick={closeModal} className="flex-1 py-3 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-xl font-bold text-sm">Cancel</button>}
-                                <button onClick={() => { if(modalConfig.onConfirm) modalConfig.onConfirm(); closeModal(); }} className="flex-1 py-3 bg-blue-600 text-white rounded-xl font-bold text-sm shadow-lg">Okay</button>
-                            </div>
-                        </motion.div>
-                    </div>
-                )}
-            </AnimatePresence>
-
+        <div className="min-h-screen bg-[#F2F6FA] dark:bg-[#0a0a0a] text-gray-800 dark:text-gray-100 font-sans pb-24 relative flex flex-col h-screen overflow-hidden">
+            
             {activeSection === 'profile' && <Header />}
 
             <div className="flex-1 overflow-y-auto">
                 {activeSection === 'profile' && (
                     <div className="p-4 space-y-4 animate-in fade-in zoom-in duration-300">
-                        {/* 1. INFO CARD */}
-                        <div className="bg-white dark:bg-[#151515] p-5 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 relative overflow-hidden">
-                            <div className="absolute top-0 right-0 w-24 h-24 bg-blue-50 dark:bg-blue-900/10 rounded-bl-full -mr-4 -mt-4 opacity-50"></div>
-                            <h2 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-4">My Details</h2>
-                            <div className="grid grid-cols-2 gap-4">
-                                <div><span className="text-[10px] font-bold text-gray-400 flex items-center gap-1"><Layers size={10}/> Class</span><span className="text-sm font-black text-gray-800 dark:text-white">{isClassTeacher ? profile.class_name : 'N/A'}</span></div>
-                                <div><span className="text-[10px] font-bold text-gray-400 flex items-center gap-1"><Hash size={10}/> ID</span><span className="text-sm font-black text-gray-800 dark:text-white">{profile.login_id}</span></div>
-                                <div className="col-span-2"><span className="text-[10px] font-bold text-gray-400 flex items-center gap-1"><Phone size={10}/> Contact</span><span className="text-sm font-black text-gray-800 dark:text-white">{profile.contact}</span></div>
+                        
+                        {/* 1. TEACHER PROFILE CARD (Updated Style) */}
+                        <div className="relative mb-6">
+                            <div className="bg-gradient-to-r from-indigo-600 to-purple-600 rounded-[2rem] p-6 text-white shadow-xl shadow-indigo-500/25 relative overflow-hidden">
+                                <div className="absolute -right-10 -top-10 w-40 h-40 bg-white/10 rounded-full blur-3xl pointer-events-none"></div>
+                                <div className="relative z-10 flex flex-col items-center text-center">
+                                    <div className="w-24 h-24 rounded-full border-4 border-white/30 p-1 mb-3">
+                                        <img 
+                                            src={`${process.env.NEXT_PUBLIC_IMAGE_BASE_URL}${profile.profile_pic}`} 
+                                            className="w-full h-full rounded-full object-cover bg-gray-200" 
+                                            alt="Profile"
+                                            loading="lazy"
+                                        />
+                                    </div>
+                                    <h2 className="text-2xl font-black leading-tight">{profile.name}</h2>
+                                    <p className="text-indigo-100 text-sm font-medium mb-3">{profile.login_id} | {profile.contact}</p>
+                                    
+                                    <div className="flex gap-2 mb-4">
+                                        <span className="bg-black/20 backdrop-blur-md px-4 py-1.5 rounded-full text-xs font-bold border border-white/10">
+                                            {isClassTeacher ? `Class Teacher: ${profile.class_name}` : 'Subject Teacher'}
+                                        </span>
+                                    </div>
+                                </div>
                             </div>
                         </div>
 
-                        {/* 2. BENTO GRID */}
+                        {/* 2. BENTO GRID ACTIONS */}
                         <div className="grid grid-cols-2 gap-3">
-                            <button onClick={() => setActiveSection('create_post')} className="col-span-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white p-5 rounded-2xl shadow-lg flex items-center justify-between active:scale-95 transition-transform">
+                            <button onClick={() => setActiveSection('create_post')} className="col-span-2 bg-gradient-to-r from-blue-600 to-cyan-600 text-white p-5 rounded-2xl shadow-lg flex items-center justify-between active:scale-95 transition-transform">
                                 <div className="text-left"><h3 className="font-bold text-lg">Create Update</h3><p className="text-blue-100 text-xs opacity-90">Homework, Notices & Files</p></div>
                                 <div className="bg-white/20 p-3 rounded-full"><FileText size={24} /></div>
                             </button>
@@ -218,15 +219,15 @@ export default function TeacherPage() {
                 {/* --- SECTIONS --- */}
                 {activeSection !== 'profile' && (
                     <div className="animate-in slide-in-from-bottom-4 duration-300 h-full">
-                        {activeSection === 'create_post' && <CreatePostSection teacherId={user.id} isClassTeacher={isClassTeacher} students={students} allClasses={all_classes} onBack={() => setActiveSection('profile')} showConfirm={showConfirm} showSuccess={showSuccess} />}
-                        {activeSection === 'recent_posts' && <RecentPostsSection teacherId={user.id} onBack={() => setActiveSection('profile')} showConfirm={showConfirm} showSuccess={showSuccess} />}
-                        {activeSection === 'my_students' && <MyStudentsSection teacherId={user.id} students={students} onBack={() => setActiveSection('profile')} showConfirm={showConfirm} showSuccess={showSuccess} />}
+                        {activeSection === 'create_post' && <CreatePostSection teacherId={user.id} isClassTeacher={isClassTeacher} students={students} allClasses={all_classes} onBack={() => setActiveSection('profile')} showModal={showModal} />}
+                        {activeSection === 'recent_posts' && <RecentPostsSection teacherId={user.id} onBack={() => setActiveSection('profile')} showModal={showModal} />}
+                        {activeSection === 'my_students' && <MyStudentsSection teacherId={user.id} students={students} onBack={() => setActiveSection('profile')} showModal={showModal} />}
                         
                         {/* New Feature Sections */}
-                        {activeSection === 'marks' && <MarksSection classId={classId} onBack={() => setActiveSection('profile')} showSuccess={showSuccess} />}
-                        {activeSection === 'timetable' && <TimetableSection classId={classId} onBack={() => setActiveSection('profile')} showSuccess={showSuccess} />}
-                        {activeSection === 'report_cards' && <ReportCardsSection classId={classId} onBack={() => setActiveSection('profile')} showSuccess={showSuccess} />}
-                        {activeSection === 'toppers' && <ToppersSection classId={classId} students={students} onBack={() => setActiveSection('profile')} showSuccess={showSuccess} />}
+                        {activeSection === 'marks' && <MarksSection classId={classId} onBack={() => setActiveSection('profile')} showModal={showModal} />}
+                        {activeSection === 'timetable' && <TimetableSection classId={classId} onBack={() => setActiveSection('profile')} showModal={showModal} />}
+                        {activeSection === 'report_cards' && <ReportCardsSection classId={classId} onBack={() => setActiveSection('profile')} showModal={showModal} />}
+                        {activeSection === 'toppers' && <ToppersSection classId={classId} students={students} onBack={() => setActiveSection('profile')} showModal={showModal} />}
                     </div>
                 )}
             </div>
@@ -234,14 +235,10 @@ export default function TeacherPage() {
     );
 }
 
-// ... [Keep MyStudentsSection, StudentDetailView, CreatePostSection, RecentPostsSection, PlaceholderSection, InfoRow AS IS] ...
-// IMPORTANT: You must copy-paste these functions from previous steps or keep them in the file.
-// I am adding the NEW sections below for you to append.
-
 // ----------------------------------------------------------------------
-// SUB-COMPONENT: MARKS ENTRY (Using Custom Select)
+// SUB-COMPONENT: MARKS ENTRY
 // ----------------------------------------------------------------------
-function MarksSection({ classId, onBack, showSuccess }) {
+function MarksSection({ classId, onBack, showModal }) {
     const [exams, setExams] = useState([]);
     const [subjects, setSubjects] = useState([]);
     const [selectedExam, setSelectedExam] = useState('');
@@ -279,7 +276,7 @@ function MarksSection({ classId, onBack, showSuccess }) {
         studentMarks.forEach(s => { if(s.marks_obtained !== null) marksData[s.id] = s.marks_obtained; });
         const fd = new FormData(); fd.append('action', 'save_marks_bulk'); fd.append('exam_id', selectedExam); fd.append('subject_code', selectedSubject); fd.append('marks_data', JSON.stringify(marksData));
         await fetch(`${process.env.NEXT_PUBLIC_API_URL}/teacher_app.php`, { method: 'POST', body: fd });
-        showSuccess("Saved", "Marks updated successfully.");
+        showModal("Saved", "Marks updated successfully.", "success");
     };
 
     return (
@@ -319,7 +316,7 @@ function MarksSection({ classId, onBack, showSuccess }) {
 // ----------------------------------------------------------------------
 // SUB-COMPONENT: TIMETABLE
 // ----------------------------------------------------------------------
-function TimetableSection({ classId, onBack, showSuccess }) {
+function TimetableSection({ classId, onBack, showModal }) {
     const [timetable, setTimetable] = useState({});
     const [subjectOptions, setSubjectOptions] = useState([]);
     const [editing, setEditing] = useState(false);
@@ -333,7 +330,6 @@ function TimetableSection({ classId, onBack, showSuccess }) {
             const json = await res.json();
             if(json.status==='success') {
                 setTimetable(json.timetable);
-                // Map subjects for dropdown
                 setSubjectOptions(json.subjects.map(s => ({ value: s.code, label: s.name })));
             }
         }
@@ -345,7 +341,7 @@ function TimetableSection({ classId, onBack, showSuccess }) {
     const saveTimetable = async () => {
         const fd = new FormData(); fd.append('action', 'save_timetable'); fd.append('class_id', classId); fd.append('timetable_data', JSON.stringify(timetable));
         await fetch(`${process.env.NEXT_PUBLIC_API_URL}/teacher_app.php`, { method: 'POST', body: fd });
-        setEditing(false); showSuccess("Saved", "Timetable updated.");
+        setEditing(false); showModal("Saved", "Timetable updated.", "success");
     };
 
     return (
@@ -401,7 +397,7 @@ function TimetableSection({ classId, onBack, showSuccess }) {
 // ----------------------------------------------------------------------
 // SUB-COMPONENT: REPORT CARDS (Publishing)
 // ----------------------------------------------------------------------
-function ReportCardsSection({ classId, onBack, showSuccess }) {
+function ReportCardsSection({ classId, onBack, showModal }) {
     const [exams, setExams] = useState([]);
 
     useEffect(() => {
@@ -454,7 +450,7 @@ function ReportCardsSection({ classId, onBack, showSuccess }) {
 // ----------------------------------------------------------------------
 // SUB-COMPONENT: TOPPERS
 // ----------------------------------------------------------------------
-function ToppersSection({ classId, students, onBack, showSuccess }) {
+function ToppersSection({ classId, students, onBack, showModal }) {
     const [toppers, setToppers] = useState({});
     const [showToppers, setShowToppers] = useState(false);
     const [studentOptions, setStudentOptions] = useState([]);
@@ -475,7 +471,7 @@ function ToppersSection({ classId, students, onBack, showSuccess }) {
         [1,2,3].forEach(r => ranksData[r] = { sid: toppers[r]?.student_id || 0, pct: toppers[r]?.percentage || '' });
         const fd = new FormData(); fd.append('action', 'save_toppers'); fd.append('class_id', classId); fd.append('show_toppers', showToppers ? 1 : 0); fd.append('ranks_data', JSON.stringify(ranksData));
         await fetch(`${process.env.NEXT_PUBLIC_API_URL}/teacher_app.php`, { method: 'POST', body: fd });
-        showSuccess("Saved", "Toppers updated.");
+        showModal("Saved", "Toppers updated.", "success");
     };
 
     return (
@@ -497,7 +493,12 @@ function ToppersSection({ classId, students, onBack, showSuccess }) {
                     {[1, 2, 3].map(rank => (
                         <div key={rank} className="bg-white dark:bg-[#151515] p-4 rounded-xl border border-gray-100 dark:border-gray-800 shadow-sm relative overflow-hidden">
                             <div className={`absolute top-0 left-0 w-1 h-full ${rank===1?'bg-yellow-400':rank===2?'bg-gray-400':'bg-orange-400'}`}></div>
-                            <h4 className="font-bold mb-3 dark:text-white flex items-center gap-2"><span className="text-lg">{rank===1?'🥇':rank===2?'🥈':'🥉'}</span> Rank {rank}</h4>
+                            <h4 className="font-bold mb-3 dark:text-white flex items-center gap-2">
+                                <span className="text-lg">
+                                    {rank === 1 ? '🥇' : rank === 2 ? '🥈' : '🥉'}
+                                </span> 
+                                Rank {rank}
+                            </h4>                            
                             <div className="grid grid-cols-3 gap-3">
                                 <div className="col-span-2">
                                     <label className="text-[10px] font-bold text-gray-400 uppercase mb-1 block">Student</label>
@@ -530,7 +531,7 @@ function ToppersSection({ classId, students, onBack, showSuccess }) {
 // ----------------------------------------------------------------------
 // SUB-COMPONENT: MY STUDENTS
 // ----------------------------------------------------------------------
-function MyStudentsSection({ teacherId, students, onBack, showConfirm, showSuccess }) {
+function MyStudentsSection({ teacherId, students, onBack, showModal }) {
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedStudent, setSelectedStudent] = useState(null);
 
@@ -541,7 +542,6 @@ function MyStudentsSection({ teacherId, students, onBack, showConfirm, showSucce
 
     return (
         <div className="bg-gray-50 dark:bg-[#0a0a0a] h-full flex flex-col">
-            {/* Sticky Header */}
             <div className="sticky top-0 bg-white dark:bg-[#151515] z-40 px-5 py-4 border-b border-gray-100 dark:border-gray-800 flex items-center gap-4 shadow-sm shrink-0">
                 <button onClick={onBack} className="p-2 -ml-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800"><ArrowLeft size={20} className="dark:text-white" /></button>
                 <div className="flex-1">
@@ -551,7 +551,6 @@ function MyStudentsSection({ teacherId, students, onBack, showConfirm, showSucce
             </div>
 
             <div className="flex-1 overflow-y-auto p-4">
-                {/* Search */}
                 <div className="bg-white dark:bg-[#151515] p-3 rounded-xl border border-gray-200 dark:border-gray-800 flex items-center gap-2 mb-4 shadow-sm sticky top-0 z-30">
                     <Search size={18} className="text-gray-400" />
                     <input 
@@ -565,7 +564,7 @@ function MyStudentsSection({ teacherId, students, onBack, showConfirm, showSucce
                     {filteredStudents.map(stu => (
                         <div key={stu.id} onClick={() => setSelectedStudent(stu.id)} className="bg-white dark:bg-[#151515] p-4 rounded-xl border border-gray-100 dark:border-gray-800 flex items-center gap-4 active:scale-98 transition-transform cursor-pointer shadow-sm">
                             <div className="w-12 h-12 rounded-full bg-gray-100 dark:bg-gray-800 overflow-hidden border border-gray-100 dark:border-gray-700">
-                                <img src={`${process.env.NEXT_PUBLIC_IMAGE_BASE_URL}${stu.profile_pic || 'GMPSimages/default_student.png'}`} className="w-full h-full object-cover"/>
+                                <img src={`${process.env.NEXT_PUBLIC_IMAGE_BASE_URL}${stu.profile_pic || 'GMPSimages/default_student.png'}`} className="w-full h-full object-cover" loading="lazy" />
                             </div>
                             <div className="flex-1">
                                 <h4 className="font-bold text-gray-900 dark:text-white">{stu.name}</h4>
@@ -580,15 +579,13 @@ function MyStudentsSection({ teacherId, students, onBack, showConfirm, showSucce
                 </div>
             </div>
 
-            {/* FULL DETAIL MODAL */}
             <AnimatePresence>
                 {selectedStudent && (
                     <StudentDetailView 
                         studentId={selectedStudent} 
                         teacherId={teacherId}
                         onClose={() => setSelectedStudent(null)} 
-                        showConfirm={showConfirm}
-                        showSuccess={showSuccess}
+                        showModal={showModal}
                     />
                 )}
             </AnimatePresence>
@@ -599,7 +596,7 @@ function MyStudentsSection({ teacherId, students, onBack, showConfirm, showSucce
 // ----------------------------------------------------------------------
 // SUB-COMPONENT: STUDENT DEEP DETAIL VIEW
 // ----------------------------------------------------------------------
-function StudentDetailView({ studentId, teacherId, onClose, showConfirm, showSuccess }) {
+function StudentDetailView({ studentId, teacherId, onClose, showModal }) {
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(false);
@@ -607,9 +604,8 @@ function StudentDetailView({ studentId, teacherId, onClose, showConfirm, showSuc
     const [selectedMonth, setSelectedMonth] = useState(null); 
     const [monthLogs, setMonthLogs] = useState([]);
     
-    // Changes Tracking
-    const [modifiedMarks, setModifiedMarks] = useState({}); // { examId: { subjectCode: val } }
-    const [modifiedAttendance, setModifiedAttendance] = useState([]); // Array of modified log objects
+    const [modifiedMarks, setModifiedMarks] = useState({}); 
+    const [modifiedAttendance, setModifiedAttendance] = useState([]); 
 
     useEffect(() => {
         const fetchDetails = async () => {
@@ -633,8 +629,6 @@ function StudentDetailView({ studentId, teacherId, onClose, showConfirm, showSuc
     const loadMonthLogs = async (month) => {
         if(selectedMonth === month) { setSelectedMonth(null); return; }
         setSelectedMonth(month);
-        // Load data but don't reset modified array if already editing? 
-        // For simplicity, we fetch fresh logs.
         const fd = new FormData();
         fd.append('action', 'fetch_student_month_detail');
         fd.append('student_id', studentId);
@@ -642,22 +636,17 @@ function StudentDetailView({ studentId, teacherId, onClose, showConfirm, showSuc
         const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/teacher_app.php`, { method: 'POST', body: fd });
         const json = await res.json();
         if(json.status === 'success') setMonthLogs(json.logs);
-        setModifiedAttendance([]); // Reset modifications for new month view
+        setModifiedAttendance([]); 
     };
 
     const toggleAttendanceDay = (date, currentStatus) => {
         const dayOfWeek = new Date(date).getDay();
-        if (dayOfWeek === 0) return; // Block Sundays (0 = Sunday)
-        if (currentStatus === 'holiday') return; // Block Holidays
+        if (dayOfWeek === 0) return; 
+        if (currentStatus === 'holiday') return; 
 
         const newStatus = currentStatus === 'present' ? 'absent' : 'present';
-        
-        // Optimistic UI Update
         setMonthLogs(prev => prev.map(l => l.date === date ? { ...l, status: newStatus } : l));
-        
-        // Track Change
         setModifiedAttendance(prev => {
-            // Remove existing change for this date if exists
             const filtered = prev.filter(p => p.date !== date);
             return [...filtered, { date, status: newStatus }];
         });
@@ -665,8 +654,6 @@ function StudentDetailView({ studentId, teacherId, onClose, showConfirm, showSuc
 
     const saveAttendanceChanges = async () => {
         if (modifiedAttendance.length === 0) return;
-        
-        // Send requests in parallel (Simple implementation)
         const promises = modifiedAttendance.map(log => {
             const fd = new FormData();
             fd.append('action', 'update_student_day_attendance');
@@ -677,10 +664,9 @@ function StudentDetailView({ studentId, teacherId, onClose, showConfirm, showSuc
             fd.append('class_id', data.student.class_id);
             return fetch(`${process.env.NEXT_PUBLIC_API_URL}/teacher_app.php`, { method: 'POST', body: fd });
         });
-
         await Promise.all(promises);
         setModifiedAttendance([]);
-        showSuccess("Saved", "Attendance updated successfully.");
+        showModal("Saved", "Attendance updated successfully.", "success");
     };
 
     const handleMarkChange = (examId, subjectCode, newVal) => {
@@ -696,21 +682,16 @@ function StudentDetailView({ studentId, teacherId, onClose, showConfirm, showSuc
     const saveMarksForExam = async (examId) => {
         const changes = modifiedMarks[examId];
         if (!changes) return;
-
         const fd = new FormData();
         fd.append('action', 'update_student_marks');
         fd.append('student_id', studentId);
         fd.append('exam_id', examId);
         fd.append('marks', JSON.stringify(changes));
-        
         await fetch(`${process.env.NEXT_PUBLIC_API_URL}/teacher_app.php`, { method: 'POST', body: fd });
-        
-        // Clear saved changes from tracker
         const newMod = { ...modifiedMarks };
         delete newMod[examId];
         setModifiedMarks(newMod);
-        
-        showSuccess("Saved", "Exam marks updated successfully.");
+        showModal("Saved", "Exam marks updated successfully.", "success");
     };
 
     if(loading) return <div className="fixed inset-0 bg-white dark:bg-[#101010] z-50 flex justify-center items-center"><div className="w-8 h-8 border-4 border-blue-600 rounded-full animate-spin border-t-transparent"></div></div>;
@@ -726,7 +707,7 @@ function StudentDetailView({ studentId, teacherId, onClose, showConfirm, showSuc
             <div className="bg-white dark:bg-[#151515] px-5 py-4 border-b border-gray-100 dark:border-gray-800 flex items-center gap-4 shadow-sm shrink-0">
                 <button onClick={onClose} className="p-2 -ml-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800"><ArrowLeft size={20} className="dark:text-white"/></button>
                 <div className="flex items-center gap-3">
-                    <img src={`${process.env.NEXT_PUBLIC_IMAGE_BASE_URL}${student.profile_pic}`} className="w-8 h-8 rounded-full object-cover bg-gray-200"/>
+                    <img src={`${process.env.NEXT_PUBLIC_IMAGE_BASE_URL}${student.profile_pic}`} className="w-8 h-8 rounded-full object-cover bg-gray-200" loading="lazy" />
                     <h2 className="text-sm font-black text-gray-800 dark:text-white">{student.name}</h2>
                 </div>
             </div>
@@ -734,7 +715,7 @@ function StudentDetailView({ studentId, teacherId, onClose, showConfirm, showSuc
             <div className="flex-1 overflow-y-auto p-4 space-y-6">
                 <div className="bg-white dark:bg-[#151515] p-5 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 text-center">
                     <div className="w-24 h-24 mx-auto rounded-full p-1 bg-gradient-to-tr from-blue-500 to-purple-500 mb-3">
-                        <img src={`${process.env.NEXT_PUBLIC_IMAGE_BASE_URL}${student.profile_pic}`} className="w-full h-full rounded-full object-cover border-4 border-white dark:border-[#151515] bg-white"/>
+                        <img src={`${process.env.NEXT_PUBLIC_IMAGE_BASE_URL}${student.profile_pic}`} className="w-full h-full rounded-full object-cover border-4 border-white dark:border-[#151515] bg-white" loading="lazy" />
                     </div>
                     <h2 className="text-xl font-black text-gray-900 dark:text-white">{student.name}</h2>
                     <p className="text-sm text-gray-500 dark:text-gray-400 font-medium">Roll No: {student.roll_no} | {student.login_id}</p>
@@ -765,7 +746,7 @@ function StudentDetailView({ studentId, teacherId, onClose, showConfirm, showSuc
                                         <div className="bg-blue-50 dark:bg-blue-900/20 text-blue-600 p-2 rounded-lg font-bold text-xs w-10 text-center">{new Date(0, m-1).toLocaleString('default', {month:'short'})}</div>
                                         <div className="text-left">
                                             <div className="text-xs text-gray-400 font-bold uppercase">Summary</div>
-                                            <div className="text-sm font-bold dark:text-white"><span className="text-green-600">{stats.present} P</span> • <span className="text-red-500">{stats.absent} A</span></div>
+                                            <div className="text-sm font-bold dark:text-white"><span className="text-green-600">{stats.present} P</span> 窶｢ <span className="text-red-500">{stats.absent} A</span></div>
                                         </div>
                                     </div>
                                     {selectedMonth == m ? <ChevronUp size={18} className="dark:text-white"/> : <ChevronDown size={18} className="dark:text-white"/>}
@@ -828,7 +809,7 @@ function StudentDetailView({ studentId, teacherId, onClose, showConfirm, showSuc
                                                 type="number" 
                                                 defaultValue={sub.marks_obtained}
                                                 onChange={(e) => handleMarkChange(exam.id, sub.code, e.target.value)}
-                                                className="w-20 p-2 text-center text-sm font-bold rounded-lg border border-gray-200 bg-gray-50 focus:ring-2 ring-blue-500 outline-none dark:bg-black dark:text-white dark:border-gray-700"
+                                                className="w-20 p-2 text-center text-sm font-bold rounded-lg border border-gray-200 bg-gray-50 focus:ring-2 ring-blue-50 outline-none dark:bg-black dark:text-white dark:border-gray-700"
                                             />
                                         </div>
                                     ))}
@@ -853,9 +834,9 @@ function StudentDetailView({ studentId, teacherId, onClose, showConfirm, showSuc
 }
 
 // ----------------------------------------------------------------------
-// SUB-COMPONENT: CREATE POST (No Changes, included for completeness)
+// SUB-COMPONENT: CREATE POST
 // ----------------------------------------------------------------------
-function CreatePostSection({ teacherId, isClassTeacher, students, allClasses, onBack, showConfirm, showSuccess }) {
+function CreatePostSection({ teacherId, isClassTeacher, students, allClasses, onBack, showModal }) {
     const [mode, setMode] = useState(isClassTeacher ? 'daily' : 'general');
     const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
     const [submitting, setSubmitting] = useState(false);
@@ -866,13 +847,9 @@ function CreatePostSection({ teacherId, isClassTeacher, students, allClasses, on
     const [gen, setGen] = useState([{ heading: '', content: '' }]);
     const [selectedClasses, setSelectedClasses] = useState([]);
 
-    const addRow = (setter, base) => setter(prev => [...prev, { ...base }]);
-    const removeRow = (setter, idx) => setter(prev => prev.filter((_, i) => i !== idx));
-    const updateRow = (setter, idx, field, val) => setter(prev => prev.map((item, i) => i === idx ? { ...item, [field]: val } : item));
-
     const handleSubmitClick = () => {
         if(mode === 'general' && selectedClasses.length === 0) return alert("Select at least one class!");
-        showConfirm("Publish Update?", "Are you sure you want to publish this update?", executeSubmit);
+        showModal("Publish Update?", "Are you sure you want to publish this update?", "neutral", executeSubmit);
     };
 
     const executeSubmit = async () => {
@@ -912,7 +889,7 @@ function CreatePostSection({ teacherId, isClassTeacher, students, allClasses, on
 
         try {
             await fetch(`${process.env.NEXT_PUBLIC_API_URL}/teacher_app.php`, { method: 'POST', body: fd });
-            showSuccess("Posted!", "Your update is now live.");
+            showModal("Posted!", "Your update is now live.", "success");
             onBack();
         } catch(e) { alert("Error posting"); }
         setSubmitting(false);
@@ -920,18 +897,18 @@ function CreatePostSection({ teacherId, isClassTeacher, students, allClasses, on
 
     return (
         <div className="pb-20">
-            <div className="sticky top-0 bg-white z-40 px-5 py-4 border-b border-gray-100 flex items-center gap-4 shadow-sm">
-                <button onClick={onBack} className="p-2 -ml-2 rounded-full hover:bg-gray-100"><X size={20} /></button>
-                <h2 className="text-lg font-black text-gray-800">Create Update</h2>
+            <div className="sticky top-0 bg-white dark:bg-[#151515] z-40 px-5 py-4 border-b border-gray-100 dark:border-gray-800 flex items-center gap-4 shadow-sm">
+                <button onClick={onBack} className="p-2 -ml-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800"><X size={20} className="dark:text-white" /></button>
+                <h2 className="text-lg font-black text-gray-800 dark:text-white">Create Update</h2>
             </div>
             <div className="p-4 space-y-6">
-                <div className="bg-gray-100 p-1 rounded-xl flex">
-                    {isClassTeacher && <button onClick={()=>setMode('daily')} className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all ${mode==='daily'?'bg-white shadow text-blue-600':'text-gray-500'}`}>Daily Update</button>}
-                    <button onClick={()=>setMode('general')} className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all ${mode==='general'?'bg-white shadow text-blue-600':'text-gray-500'}`}>General Notice</button>
+                <div className="bg-gray-100 dark:bg-gray-900 p-1 rounded-xl flex">
+                    {isClassTeacher && <button onClick={()=>setMode('daily')} className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all ${mode==='daily'?'bg-white dark:bg-[#151515] shadow text-blue-600':'text-gray-500 dark:text-gray-400'}`}>Daily Update</button>}
+                    <button onClick={()=>setMode('general')} className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all ${mode==='general'?'bg-white dark:bg-[#151515] shadow text-blue-600':'text-gray-500 dark:text-gray-400'}`}>General Notice</button>
                 </div>
-                <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+                <div className="bg-white dark:bg-[#151515] p-4 rounded-xl shadow-sm border border-gray-100 dark:border-gray-800">
                     <label className="text-xs font-bold text-gray-400 uppercase">Date</label>
-                    <input type="date" value={date} onChange={e=>setDate(e.target.value)} className="w-full mt-1 p-2 bg-gray-50 rounded-lg font-bold outline-none"/>
+                    <input type="date" value={date} onChange={e=>setDate(e.target.value)} className="w-full mt-1 p-2 bg-gray-50 dark:bg-[#0a0a0a] rounded-lg font-bold outline-none dark:text-white"/>
                 </div>
                 {mode === 'daily' && isClassTeacher ? (
                     <div className="space-y-6">
@@ -941,12 +918,12 @@ function CreatePostSection({ teacherId, isClassTeacher, students, allClasses, on
                     </div>
                 ) : (
                     <div className="space-y-6">
-                        <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+                        <div className="bg-white dark:bg-[#151515] p-4 rounded-xl shadow-sm border border-gray-100 dark:border-gray-800">
                             <label className="text-xs font-bold text-gray-400 uppercase mb-2 block">Post To</label>
                             <div className="flex flex-wrap gap-2">
-                                <button onClick={() => setSelectedClasses(prev => prev.includes('all') ? [] : ['all'])} className={`px-3 py-1 rounded-full text-xs font-bold border ${selectedClasses.includes('all') ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-600 border-gray-200'}`}>All Classes</button>
+                                <button onClick={() => setSelectedClasses(prev => prev.includes('all') ? [] : ['all'])} className={`px-3 py-1 rounded-full text-xs font-bold border ${selectedClasses.includes('all') ? 'bg-blue-600 text-white border-blue-600' : 'bg-white dark:bg-[#151515] text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-800'}`}>All Classes</button>
                                 {!selectedClasses.includes('all') && allClasses.map(c => (
-                                    <button key={c.id} onClick={() => setSelectedClasses(prev => prev.includes(c.id) ? prev.filter(id=>id!==c.id) : [...prev, c.id])} className={`px-3 py-1 rounded-full text-xs font-bold border ${selectedClasses.includes(c.id) ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-600 border-gray-200'}`}>{c.name}</button>
+                                    <button key={c.id} onClick={() => setSelectedClasses(prev => prev.includes(c.id) ? prev.filter(id=>id!==c.id) : [...prev, c.id])} className={`px-3 py-1 rounded-full text-xs font-bold border ${selectedClasses.includes(c.id) ? 'bg-blue-600 text-white border-blue-600' : 'bg-white dark:bg-[#151515] text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-800'}`}>{c.name}</button>
                                 ))}
                             </div>
                         </div>
@@ -962,9 +939,9 @@ function CreatePostSection({ teacherId, isClassTeacher, students, allClasses, on
 }
 
 // ----------------------------------------------------------------------
-// SUB-COMPONENT: RECENT POSTS (No Changes)
+// SUB-COMPONENT: RECENT POSTS
 // ----------------------------------------------------------------------
-function RecentPostsSection({ teacherId, onBack, showConfirm, showSuccess }) {
+function RecentPostsSection({ teacherId, onBack, showModal }) {
     const [posts, setPosts] = useState([]);
     useEffect(() => {
         const fetchPosts = async () => {
@@ -978,15 +955,15 @@ function RecentPostsSection({ teacherId, onBack, showConfirm, showSuccess }) {
         fetchPosts();
     }, [teacherId]);
 
-    const requestDeleteBatch = (timestamp) => showConfirm("Delete Post?", "Delete entire post?", () => deleteBatch(timestamp));
+    const requestDeleteBatch = (timestamp) => showModal("Delete Post?", "Delete entire post?", "danger", () => deleteBatch(timestamp));
     const deleteBatch = async (timestamp) => {
         const fd = new FormData(); fd.append('action', 'delete_batch'); fd.append('batch_time', timestamp); fd.append('teacher_id', teacherId);
         await fetch(`${process.env.NEXT_PUBLIC_API_URL}/teacher_app.php`, { method: 'POST', body: fd });
         setPosts(prev => prev.filter(p => p.created_at !== timestamp));
-        showSuccess("Deleted", "Post removed.");
+        showModal("Deleted", "Post removed.", "success");
     };
 
-    const requestDeleteItem = (itemId, pIdx, iIdx) => showConfirm("Delete Item?", "Remove this item?", () => deleteItem(itemId, pIdx, iIdx));
+    const requestDeleteItem = (itemId, pIdx, iIdx) => showModal("Delete Item?", "Remove this item?", "danger", () => deleteItem(itemId, pIdx, iIdx));
     const deleteItem = async (itemId, postIndex, itemIndex) => {
         const fd = new FormData(); fd.append('action', 'delete_item'); fd.append('item_id', itemId); fd.append('teacher_id', teacherId);
         await fetch(`${process.env.NEXT_PUBLIC_API_URL}/teacher_app.php`, { method: 'POST', body: fd });
@@ -994,32 +971,32 @@ function RecentPostsSection({ teacherId, onBack, showConfirm, showSuccess }) {
         newPosts[postIndex].items.splice(itemIndex, 1);
         if(newPosts[postIndex].items.length === 0) newPosts.splice(postIndex, 1);
         setPosts(newPosts);
-        showSuccess("Deleted", "Item removed.");
+        showModal("Deleted", "Item removed.", "success");
     };
 
     return (
         <div className="pb-20">
-            <div className="sticky top-0 bg-white z-40 px-5 py-4 border-b border-gray-100 flex items-center gap-4 shadow-sm">
-                <button onClick={onBack} className="p-2 -ml-2 rounded-full hover:bg-gray-100"><X size={20} /></button>
-                <h2 className="text-lg font-black text-gray-800">History</h2>
+            <div className="sticky top-0 bg-white dark:bg-[#151515] z-40 px-5 py-4 border-b border-gray-100 dark:border-gray-800 flex items-center gap-4 shadow-sm">
+                <button onClick={onBack} className="p-2 -ml-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800"><X size={20} className="dark:text-white" /></button>
+                <h2 className="text-lg font-black text-gray-800 dark:text-white">History</h2>
             </div>
             <div className="p-4 space-y-4">
                 {posts.length === 0 && <div className="text-center text-gray-400 py-10">No recent updates found.</div>}
                 {posts.map((post, pIdx) => (
-                    <div key={pIdx} className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100">
-                        <div className="flex justify-between items-start mb-3 border-b border-gray-50 pb-2">
+                    <div key={pIdx} className="bg-white dark:bg-[#151515] p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800">
+                        <div className="flex justify-between items-start mb-3 border-b border-gray-50 dark:border-gray-800 pb-2">
                             <div>
-                                <h4 className="font-bold text-gray-800 text-sm">{new Date(post.date).toDateString()}</h4>
+                                <h4 className="font-bold text-gray-800 dark:text-white text-sm">{new Date(post.date).toDateString()}</h4>
                                 <p className="text-[10px] text-gray-400 font-bold uppercase">{post.classes.join(', ')}</p>
                             </div>
-                            <button onClick={() => requestDeleteBatch(post.created_at)} className="text-red-400 bg-red-50 p-1.5 rounded-lg"><Trash2 size={14}/></button>
+                            <button onClick={() => requestDeleteBatch(post.created_at)} className="text-red-400 bg-red-50 dark:bg-red-900/20 p-1.5 rounded-lg"><Trash2 size={14}/></button>
                         </div>
                         <div className="space-y-3">
                             {post.items.map((item, iIdx) => (
-                                <div key={iIdx} className="flex justify-between items-start text-sm bg-gray-50 p-2 rounded-lg">
+                                <div key={iIdx} className="flex justify-between items-start text-sm bg-gray-50 dark:bg-[#1a1a1a] p-2 rounded-lg">
                                     <div>
                                         <span className={`font-bold uppercase text-[10px] px-2 py-0.5 rounded ${item.item_type==='classwork'?'bg-blue-100 text-blue-700':item.item_type==='homework'?'bg-purple-100 text-purple-700':item.item_type==='defaulter'?'bg-red-100 text-red-700':'bg-green-100 text-green-700'}`}>{item.item_type}</span>
-                                        <p className="font-medium mt-1 leading-snug">{item.heading}</p>
+                                        <p className="font-medium mt-1 leading-snug dark:text-gray-300">{item.heading}</p>
                                         {item.files && item.files.length > 0 && <div className="mt-1 flex gap-1"><ImageIcon size={12} className="text-gray-400"/> <span className="text-[10px] text-gray-400">{item.files.length} file(s)</span></div>}
                                     </div>
                                     <button onClick={() => requestDeleteItem(item.item_id, pIdx, iIdx)} className="text-gray-300 hover:text-red-500"><X size={14}/></button>
@@ -1038,22 +1015,22 @@ function RepeaterSection({ title, color, items, setter, fileKey, placeholder, ic
     const add = () => setter(prev => [...prev, {heading:'', content:''}]);
     const remove = (i) => setter(prev => prev.filter((_, idx) => idx !== i));
     const update = (i, f, v) => setter(prev => prev.map((item, idx) => idx===i ? {...item, [f]:v} : item));
-    const colorClasses = { blue: "text-blue-600 bg-blue-50", purple: "text-purple-600 bg-purple-50", green: "text-green-600 bg-green-50" };
+    const colorClasses = { blue: "text-blue-600 bg-blue-50 dark:bg-blue-900/20 dark:text-blue-400", purple: "text-purple-600 bg-purple-50 dark:bg-purple-900/20 dark:text-purple-400", green: "text-green-600 bg-green-50 dark:bg-green-900/20 dark:text-green-400" };
 
     return (
         <div>
             <div className="flex justify-between items-center mb-3">
-                <div className="flex items-center gap-2"><div className={`p-1.5 rounded-lg ${colorClasses[color]}`}><Icon size={16}/></div><h4 className={`font-bold ${color === 'blue' ? 'text-blue-700' : color==='purple'?'text-purple-700':'text-green-700'}`}>{title}</h4></div>
-                <button onClick={add} className="w-8 h-8 flex items-center justify-center bg-gray-100 rounded-full hover:bg-gray-200 text-gray-600"><Plus size={18}/></button>
+                <div className="flex items-center gap-2"><div className={`p-1.5 rounded-lg ${colorClasses[color]}`}><Icon size={16}/></div><h4 className={`font-bold ${color === 'blue' ? 'text-blue-700 dark:text-blue-400' : color==='purple'?'text-purple-700 dark:text-purple-400':'text-green-700 dark:text-green-400'}`}>{title}</h4></div>
+                <button onClick={add} className="w-8 h-8 flex items-center justify-center bg-gray-100 dark:bg-gray-800 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-400"><Plus size={18}/></button>
             </div>
             <div className="space-y-3">
                 {items.map((item, i) => (
-                    <div key={i} className="bg-white p-3 rounded-xl border border-gray-200 shadow-sm relative group">
-                        <input className="w-full font-bold text-gray-800 outline-none mb-2 placeholder-gray-300" placeholder={placeholder} value={item.heading} onChange={e => update(i, 'heading', e.target.value)} />
-                        <textarea className="w-full text-sm text-gray-600 outline-none resize-none placeholder-gray-300 mb-2" rows={2} placeholder="Details..." value={item.content} onChange={e => update(i, 'content', e.target.value)}></textarea>
-                        <div className="flex items-center gap-2 bg-gray-50 p-2 rounded-lg border border-dashed border-gray-300">
+                    <div key={i} className="bg-white dark:bg-[#151515] p-3 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm relative group">
+                        <input className="w-full font-bold text-gray-800 dark:text-white bg-transparent outline-none mb-2 placeholder-gray-300" placeholder={placeholder} value={item.heading} onChange={e => update(i, 'heading', e.target.value)} />
+                        <textarea className="w-full text-sm text-gray-600 dark:text-gray-300 bg-transparent outline-none resize-none placeholder-gray-300 mb-2" rows={2} placeholder="Details..." value={item.content} onChange={e => update(i, 'content', e.target.value)}></textarea>
+                        <div className="flex items-center gap-2 bg-gray-50 dark:bg-[#0a0a0a] p-2 rounded-lg border border-dashed border-gray-300 dark:border-gray-700">
                             <ImageIcon size={16} className="text-gray-400"/>
-                            <input type="file" id={`${fileKey}_${i}`} multiple className="text-xs text-gray-500 file:mr-2 file:py-1 file:px-2 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"/>
+                            <input type="file" id={`${fileKey}_${i}`} multiple className="text-xs text-gray-500 file:mr-2 file:py-1 file:px-2 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 dark:file:bg-blue-900/30 dark:file:text-blue-400"/>
                         </div>
                         {items.length > 1 && <button onClick={() => remove(i)} className="absolute top-2 right-2 text-red-300 hover:text-red-500"><X size={16}/></button>}
                     </div>
@@ -1073,21 +1050,21 @@ function DefaulterSection({ items, setter, students }) {
     return (
         <div>
             <div className="flex justify-between items-center mb-3">
-                <div className="flex items-center gap-2"><div className="p-1.5 rounded-lg bg-red-50 text-red-600"><User size={16}/></div><h4 className="font-bold text-red-700">Defaulters List</h4></div>
-                <button onClick={add} className="w-8 h-8 flex items-center justify-center bg-gray-100 rounded-full hover:bg-gray-200 text-gray-600"><Plus size={18}/></button>
+                <div className="flex items-center gap-2"><div className="p-1.5 rounded-lg bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400"><User size={16}/></div><h4 className="font-bold text-red-700 dark:text-red-400">Defaulters List</h4></div>
+                <button onClick={add} className="w-8 h-8 flex items-center justify-center bg-gray-100 dark:bg-gray-800 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-400"><Plus size={18}/></button>
             </div>
             <div className="space-y-3">
                 {items.map((item, i) => (
-                    <div key={i} className="bg-white p-3 rounded-xl border border-gray-200 shadow-sm relative">
-                        <input className="w-full font-bold text-red-600 outline-none mb-2 placeholder-red-200" placeholder="Issue (e.g. Incomplete Math Copy)" value={item.heading} onChange={e => update(i, 'heading', e.target.value)}/>
-                        <button onClick={() => setOpenDropdown(openDropdown === i ? null : i)} className="w-full flex justify-between items-center px-3 py-2 bg-red-50 rounded-lg text-xs font-bold text-red-600">
+                    <div key={i} className="bg-white dark:bg-[#151515] p-3 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm relative">
+                        <input className="w-full font-bold text-red-600 dark:text-red-400 bg-transparent outline-none mb-2 placeholder-red-200" placeholder="Issue (e.g. Incomplete Math Copy)" value={item.heading} onChange={e => update(i, 'heading', e.target.value)}/>
+                        <button onClick={() => setOpenDropdown(openDropdown === i ? null : i)} className="w-full flex justify-between items-center px-3 py-2 bg-red-50 dark:bg-red-900/20 rounded-lg text-xs font-bold text-red-600 dark:text-red-400">
                             <span>{item.students.length} Students Selected</span>
                             {openDropdown === i ? <ChevronUp size={16}/> : <ChevronDown size={16}/>}
                         </button>
                         {openDropdown === i && (
-                            <div className="mt-2 p-2 border border-gray-100 rounded-lg max-h-40 overflow-y-auto bg-white shadow-lg z-10 relative">
+                            <div className="mt-2 p-2 border border-gray-100 dark:border-gray-800 rounded-lg max-h-40 overflow-y-auto bg-white dark:bg-[#1a1a1a] shadow-lg z-10 relative">
                                 {students.map(stu => (
-                                    <label key={stu.id} className="flex items-center gap-2 text-xs py-1 border-b border-gray-50 last:border-0">
+                                    <label key={stu.id} className="flex items-center gap-2 text-xs py-1 border-b border-gray-50 dark:border-gray-800 last:border-0 dark:text-gray-300">
                                         <input type="checkbox" checked={item.students.includes(stu.id)} onChange={e => { const newSet = e.target.checked ? [...item.students, stu.id] : item.students.filter(id => id !== stu.id); update(i, 'students', newSet); }}/>
                                         {stu.name}
                                     </label>
@@ -1102,22 +1079,6 @@ function DefaulterSection({ items, setter, students }) {
     );
 }
 
-// Placeholder
-function PlaceholderSection({ title, onBack }) {
-    return (
-        <div className="h-screen flex flex-col">
-            <div className="sticky top-0 bg-white z-40 px-5 py-4 border-b border-gray-100 flex items-center gap-4 shadow-sm">
-                <button onClick={onBack} className="p-2 -ml-2 rounded-full hover:bg-gray-100"><X size={20} /></button>
-                <h2 className="text-lg font-black text-gray-800">{title}</h2>
-            </div>
-            <div className="flex-1 flex flex-col items-center justify-center text-gray-400 font-bold gap-2">
-                <Clock size={40} className="text-gray-300"/>
-                <p>Coming Soon</p>
-            </div>
-        </div>
-    )
-}
-
 function InfoRow({ label, value, icon: Icon }) {
     return (
         <div className="flex items-start gap-3">
@@ -1128,4 +1089,25 @@ function InfoRow({ label, value, icon: Icon }) {
             </div>
         </div>
     );
+}
+
+// --- SKELETON COMPONENT ---
+function TeacherSkeleton() {
+    return (
+        <div className="min-h-screen bg-[#F2F6FA] dark:bg-[#0a0a0a] pb-24">
+            <div className="sticky top-0 z-40 bg-white dark:bg-[#151515] p-5 border-b border-gray-200 dark:border-gray-800 flex justify-between items-center">
+                <div className="h-6 w-32 bg-gray-200 dark:bg-gray-800 rounded skeleton"></div>
+                <div className="h-8 w-20 bg-gray-200 dark:bg-gray-800 rounded-full skeleton"></div>
+            </div>
+            
+            <div className="px-4 mt-6">
+                <div className="h-64 w-full bg-gray-200 dark:bg-gray-800 rounded-[2rem] skeleton mb-6"></div>
+                <div className="grid grid-cols-2 gap-3">
+                    <div className="h-24 bg-gray-200 dark:bg-gray-800 rounded-2xl skeleton col-span-2"></div>
+                    <div className="h-32 bg-gray-200 dark:bg-gray-800 rounded-2xl skeleton"></div>
+                    <div className="h-32 bg-gray-200 dark:bg-gray-800 rounded-2xl skeleton"></div>
+                </div>
+            </div>
+        </div>
+    )
 }

@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronLeft, Image as ImageIcon, PlayCircle, X } from 'lucide-react';
 import Link from 'next/link';
+import Image from 'next/image'; // Import Next.js Image for optimization
 
 export default function GalleryPage() {
   const [data, setData] = useState({ images: [], videos: [] });
@@ -47,11 +48,7 @@ export default function GalleryPage() {
     return (match && match[2].length === 11) ? match[2] : null;
   };
 
-  if (loading) return (
-    <div className="flex h-screen items-center justify-center bg-[#F2F6FA] dark:bg-[#0a0a0a]">
-      <div className="w-10 h-10 border-4 border-purple-600 border-t-transparent rounded-full animate-spin"></div>
-    </div>
-  );
+  if (loading) return <GallerySkeleton />;
 
   return (
     <div className="min-h-screen bg-[#F2F6FA] dark:bg-[#0a0a0a] text-gray-800 dark:text-gray-100 font-sans pb-24 relative">
@@ -61,10 +58,10 @@ export default function GalleryPage() {
         {lightboxItem && (
           <motion.div 
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[60] bg-black/95 flex flex-col items-center justify-center p-4 backdrop-blur-md"
+            className="fixed inset-0 z-[100] bg-black/95 flex flex-col items-center justify-center p-4 backdrop-blur-md"
             onClick={() => setLightboxItem(null)}
           >
-            <button className="absolute top-6 right-6 text-white/80 hover:text-white bg-white/10 p-2 rounded-full transition-colors">
+            <button className="absolute top-6 right-6 text-white/80 hover:text-white bg-white/10 p-2 rounded-full transition-colors z-50">
                 <X size={24} />
             </button>
             
@@ -74,6 +71,7 @@ export default function GalleryPage() {
                         initial={{ scale: 0.9 }} animate={{ scale: 1 }}
                         src={lightboxItem.src} 
                         className="max-w-full max-h-[80vh] rounded-lg shadow-2xl object-contain"
+                        // We use standard img here to load the FULL QUALITY version on demand
                     />
                 ) : (
                     <div className="w-full aspect-video rounded-xl overflow-hidden shadow-2xl bg-black">
@@ -169,12 +167,16 @@ export default function GalleryPage() {
                             className="break-inside-avoid relative group rounded-xl overflow-hidden bg-gray-200 dark:bg-gray-800 shadow-sm border border-gray-100 dark:border-gray-800 cursor-zoom-in"
                             onClick={() => setLightboxItem({ type: 'img', src: `${process.env.NEXT_PUBLIC_IMAGE_BASE_URL}${img.image_url}`, caption: img.caption })}
                         >
-                            <img 
+                            {/* PERFORMANCE: Use Next.js Image for Grid (Low Quality/Optimized) */}
+                            <Image 
                                 src={`${process.env.NEXT_PUBLIC_IMAGE_BASE_URL}${img.image_url}`} 
-                                className="w-full h-auto object-cover transition-transform duration-500 group-hover:scale-110" 
+                                alt={img.caption || "Gallery Image"}
+                                width={400} 
+                                height={300}
+                                className="w-full h-auto object-cover transition-transform duration-500 group-hover:scale-110"
                                 loading="lazy"
-                                alt="Gallery"
                             />
+                            
                             {/* Overlay Gradient */}
                             <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-end p-3">
                                 <span className="text-[10px] text-white/80 bg-white/20 px-2 py-0.5 rounded-md w-fit mb-1 backdrop-blur-sm uppercase">{img.category}</span>
@@ -208,7 +210,7 @@ export default function GalleryPage() {
                                 onClick={() => setLightboxItem({ type: 'vid', src: vid.video_url, caption: vid.caption })}
                             >
                                 {thumb ? (
-                                    <img src={thumb} className="w-full h-full object-cover opacity-80 group-hover:opacity-60 transition-opacity" />
+                                    <img src={thumb} className="w-full h-full object-cover opacity-80 group-hover:opacity-60 transition-opacity" loading="lazy" />
                                 ) : (
                                     <div className="w-full h-full bg-gray-800 flex items-center justify-center text-white/50">No Preview</div>
                                 )}
@@ -242,4 +244,34 @@ export default function GalleryPage() {
 
     </div>
   );
+}
+
+// --- SKELETON COMPONENT ---
+function GallerySkeleton() {
+    return (
+        <div className="min-h-screen bg-[#F2F6FA] dark:bg-[#0a0a0a] p-4 space-y-6">
+            {/* Header Skeleton */}
+            <div className="flex items-center gap-3 py-4 border-b border-gray-200 dark:border-gray-800">
+                <div className="w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-800 skeleton" />
+                <div className="h-6 w-32 bg-gray-200 dark:bg-gray-800 rounded skeleton" />
+            </div>
+
+            {/* Tabs Skeleton */}
+            <div className="h-10 bg-gray-200 dark:bg-gray-800 rounded-xl skeleton w-full" />
+
+            {/* Filter Pills Skeleton */}
+            <div className="flex gap-2 overflow-hidden">
+                {[1,2,3,4].map(i => (
+                    <div key={i} className="h-8 w-20 rounded-full bg-gray-200 dark:bg-gray-800 skeleton" />
+                ))}
+            </div>
+
+            {/* Grid Skeleton */}
+            <div className="columns-2 gap-4 space-y-4">
+                {[1,2,3,4,5,6].map(i => (
+                    <div key={i} className={`rounded-xl bg-gray-200 dark:bg-gray-800 skeleton w-full ${i % 2 === 0 ? 'h-48' : 'h-32'}`} />
+                ))}
+            </div>
+        </div>
+    )
 }
