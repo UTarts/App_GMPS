@@ -1,7 +1,8 @@
 "use client";
 import { useEffect, useState, useRef } from 'react';
-import { useRouter } from 'next/navigation'; // Added for logout redirect
+import { useRouter } from 'next/navigation'; 
 import { useAuth } from "../../context/AuthContext";
+import { useAppModal } from "../../context/ModalContext"; // Import Global Modal
 import { 
     Users, BookOpen, UserCheck, Shield, Mail, Trash2, Edit3, 
     Search, Plus, X, Save, Calendar, Award, CheckCircle2, AlertCircle, Loader2, ChevronDown, Camera,
@@ -10,12 +11,13 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 
 export default function AdminProfile() {
-    const { user, logout } = useAuth(); // Destructure logout
-    const router = useRouter(); // For redirection
+    const { user, logout } = useAuth();
+    const router = useRouter();
+    const { showModal } = useAppModal(); // Use Global Modal
+
     const [stats, setStats] = useState({ students: 0, teachers: 0 });
-    
-    // State to hold fresh profile data (fixes profile pic issue)
     const [currentProfile, setCurrentProfile] = useState(user || {}); 
+    const [loading, setLoading] = useState(true); // Main loading state
 
     const isSuperAdmin = user?.level == 1;
     const [activeTab, setActiveTab] = useState(isSuperAdmin ? 'suggestions' : 'students');
@@ -37,8 +39,6 @@ export default function AdminProfile() {
     const [detailModal, setDetailModal] = useState(null); 
     const [editMode, setEditMode] = useState(false);
     const [addModalType, setAddModalType] = useState(null); 
-    const [confirmModal, setConfirmModal] = useState(null);
-    const [toast, setToast] = useState(null);
 
     // Refs
     const addFormRef = useRef(null);
@@ -47,28 +47,33 @@ export default function AdminProfile() {
     // --- 1. INITIAL FETCH ---
     useEffect(() => {
         async function loadInit() {
-            // Stats & Classes
-            const sRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/admin_data.php?action=get_stats`);
-            const sJson = await sRes.json();
-            if(sJson.status === 'success') setStats(sJson.data);
+            try {
+                // Stats & Classes
+                const sRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/admin_data.php?action=get_stats`);
+                const sJson = await sRes.json();
+                if(sJson.status === 'success') setStats(sJson.data);
 
-            const cRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/admin_data.php?action=get_classes`);
-            const cJson = await cRes.json();
-            if(cJson.status === 'success') setClasses(cJson.data);
-            
-            // --- FIX FOR PROFILE PICTURE ---
-            // Fetch latest admin list to find "me" and get fresh profile pic
-            if (user?.id) {
-                const aRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/admin_data.php?action=get_admins`);
-                const aJson = await aRes.json();
-                if (aJson.status === 'success') {
-                    const me = aJson.data.find(a => a.id == user.id);
-                    if (me) setCurrentProfile(me);
+                const cRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/admin_data.php?action=get_classes`);
+                const cJson = await cRes.json();
+                if(cJson.status === 'success') setClasses(cJson.data);
+                
+                // Fetch fresh profile
+                if (user?.id) {
+                    const aRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/admin_data.php?action=get_admins`);
+                    const aJson = await aRes.json();
+                    if (aJson.status === 'success') {
+                        const me = aJson.data.find(a => a.id == user.id);
+                        if (me) setCurrentProfile(me);
+                    }
                 }
+            } catch (e) {
+                console.error(e);
+            } finally {
+                setLoading(false);
             }
         }
-        loadInit();
-    }, [user?.id]);
+        if (user) loadInit();
+    }, [user]);
 
     // --- 2. TAB DATA FETCHING ---
     useEffect(() => {
@@ -134,6 +139,8 @@ export default function AdminProfile() {
     // --- SAVE HANDLERS ---
     const handleSave = async (e) => {
         e.preventDefault();
+        
+        // Show loading state or confirm? Direct save is usually fine, let's show success after.
         const fd = new FormData(editFormRef.current);
         
         let action = '';
@@ -144,23 +151,26 @@ export default function AdminProfile() {
         fd.append('action', action);
         fd.append('id', detailModal.type === 'student' ? detailModal.data.profile.id : detailModal.data.id);
 
-        await fetch(`${process.env.NEXT_PUBLIC_API_URL}/admin_data.php`, { method: 'POST', body: fd });
-        showToast('Saved Successfully!');
-        setDetailModal(null);
-        
-        // Refresh current view & current profile if self updated
-        if(activeTab === 'students') loadStudents(selectedClass);
-        if(activeTab === 'teachers') fetchTeachers();
-        if(activeTab === 'admins') fetchAdmins();
-        
-        // If I updated myself, refresh my local state
-        if(detailModal.type === 'admin' && detailModal.data.id === user.id) {
-             const aRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/admin_data.php?action=get_admins`);
-             const aJson = await aRes.json();
-             if (aJson.status === 'success') {
-                 const me = aJson.data.find(a => a.id == user.id);
-                 if (me) setCurrentProfile(me);
-             }
+        try {
+            await fetch(`${process.env.NEXT_PUBLIC_API_URL}/admin_data.php`, { method: 'POST', body: fd });
+            showModal("Success", "Changes saved successfully.", "success");
+            setDetailModal(null);
+            
+            // Refresh logic
+            if(activeTab === 'students') loadStudents(selectedClass);
+            if(activeTab === 'teachers') fetchTeachers();
+            if(activeTab === 'admins') fetchAdmins();
+            
+            if(detailModal.type === 'admin' && detailModal.data.id === user.id) {
+                 const aRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/admin_data.php?action=get_admins`);
+                 const aJson = await aRes.json();
+                 if (aJson.status === 'success') {
+                     const me = aJson.data.find(a => a.id == user.id);
+                     if (me) setCurrentProfile(me);
+                 }
+            }
+        } catch (error) {
+            showModal("Error", "Failed to save changes.", "danger");
         }
     };
 
@@ -169,41 +179,52 @@ export default function AdminProfile() {
         const fd = new FormData(addFormRef.current);
         fd.append('action', `add_${addModalType}`);
         
-        await fetch(`${process.env.NEXT_PUBLIC_API_URL}/admin_data.php`, { method: 'POST', body: fd });
-        showToast(`${addModalType} Added!`);
-        setAddModalType(null);
-        // Refresh
-        if(addModalType === 'student' && selectedClass) loadStudents(selectedClass);
-        if(addModalType === 'teacher') fetchTeachers();
-        if(addModalType === 'admin') fetchAdmins();
+        try {
+            await fetch(`${process.env.NEXT_PUBLIC_API_URL}/admin_data.php`, { method: 'POST', body: fd });
+            showModal("Added!", `New ${addModalType} added successfully.`, "success");
+            setAddModalType(null);
+            // Refresh
+            if(addModalType === 'student' && selectedClass) loadStudents(selectedClass);
+            if(addModalType === 'teacher') fetchTeachers();
+            if(addModalType === 'admin') fetchAdmins();
+        } catch (error) {
+            showModal("Error", "Failed to add.", "danger");
+        }
     };
 
-    const handleDelete = async () => {
-        if(!confirmModal) return;
+    const confirmDelete = (type, id) => {
+        showModal(
+            "Delete Record?", 
+            "This action cannot be undone. Are you sure you want to delete this?", 
+            "danger", 
+            () => handleDelete(type, id)
+        );
+    };
+
+    const handleDelete = async (type, id) => {
         const fd = new FormData();
-        fd.append('action', `delete_${confirmModal.type}`);
-        fd.append('id', confirmModal.id);
+        fd.append('action', `delete_${type}`);
+        fd.append('id', id);
         
-        await fetch(`${process.env.NEXT_PUBLIC_API_URL}/admin_data.php`, { method: 'POST', body: fd });
-        showToast('Deleted Permanently.');
-        setConfirmModal(null);
-        setDetailModal(null);
-        
-        if(confirmModal.type === 'student') loadStudents(selectedClass);
-        if(confirmModal.type === 'teacher') fetchTeachers();
-        if(confirmModal.type === 'admin') fetchAdmins();
-        if(confirmModal.type === 'suggestion') fetchSuggestions();
+        try {
+            await fetch(`${process.env.NEXT_PUBLIC_API_URL}/admin_data.php`, { method: 'POST', body: fd });
+            showModal("Deleted", "Record deleted successfully.", "success");
+            setDetailModal(null); // Close detail view if open
+            
+            if(type === 'student') loadStudents(selectedClass);
+            if(type === 'teacher') fetchTeachers();
+            if(type === 'admin') fetchAdmins();
+            if(type === 'suggestion') fetchSuggestions();
+        } catch (error) {
+            showModal("Error", "Failed to delete.", "danger");
+        }
     };
 
     const handleLogout = () => {
-        if (logout) logout();
-        router.push('/login'); // Redirect to login page
-    };
-
-    // --- UTILS ---
-    const showToast = (msg, type = 'success') => {
-        setToast({ msg, type });
-        setTimeout(() => setToast(null), 3000);
+        showModal("Logout", "Are you sure you want to logout?", "danger", () => {
+            if (logout) logout();
+            router.push('/login'); 
+        });
     };
 
     // Helper for profile pics
@@ -212,14 +233,14 @@ export default function AdminProfile() {
         return `${process.env.NEXT_PUBLIC_IMAGE_BASE_URL}${pic}`;
     };
 
-    // Navigation Helper
     const openSection = (sectionName) => {
         setActiveTab(sectionName);
         setDashboardView(false);
     };
 
-    // Shared Styles for Dropdowns
     const dropdownStyle = "w-full p-4 bg-gray-50 dark:bg-neutral-900 border-2 border-gray-200 dark:border-neutral-800 rounded-2xl text-sm font-bold text-gray-700 dark:text-gray-200 appearance-none outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all cursor-pointer bg-[url('https://api.iconify.design/lucide/chevron-down.svg?color=%239ca3af')] bg-[length:20px] bg-[center_right_1rem] bg-no-repeat pr-10";
+
+    if (loading) return <AdminSkeleton />;
 
     return (
         <div className="min-h-screen pb-24 font-sans text-gray-800 dark:text-gray-100 bg-gray-50 dark:bg-[#0a0a0a]">
@@ -228,40 +249,29 @@ export default function AdminProfile() {
             {dashboardView ? (
                 <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
                     
-                    {/* PREMIUM PROFILE HEADER (CENTERED) */}
-                    {/* Changed background logic to sync with app theme (white/black) instead of forced dark for SuperAdmin */}
+                    {/* PREMIUM PROFILE HEADER */}
                     <div className="relative pt-12 pb-10 px-6 flex flex-col items-center justify-center">
-                        
-                        {/* Logout Button (Top Right) */}
-                        <button 
-                            onClick={handleLogout}
-                            className="absolute top-6 right-6 p-2 rounded-full bg-red-50 text-red-500 dark:bg-red-900/20 hover:bg-red-100 dark:hover:bg-red-900/40 transition-colors"
-                            title="Logout"
-                        >
+                        <button onClick={handleLogout} className="absolute top-6 right-6 p-2 rounded-full bg-red-50 text-red-500 dark:bg-red-900/20 hover:bg-red-100 dark:hover:bg-red-900/40 transition-colors">
                             <LogOut size={20} />
                         </button>
 
-                        {/* Level Badge (Top Left Absolute) */}
                         <div className="absolute top-6 left-6">
                             <span className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border shadow-lg backdrop-blur-md ${isSuperAdmin ? 'bg-amber-500/20 border-amber-500 text-amber-600 dark:text-amber-500' : 'bg-indigo-500/20 border-indigo-500 text-indigo-600 dark:text-indigo-400'}`}>
                                 {isSuperAdmin ? "Super Admin" : "Administrator"}
                             </span>
                         </div>
 
-                        {/* Profile Image (Centered) */}
                         <div className={`relative w-32 h-32 rounded-full border-4 p-1 shadow-2xl mb-4 ${isSuperAdmin ? 'border-amber-500 bg-white dark:bg-neutral-900' : 'border-indigo-500 bg-white dark:bg-neutral-900'}`}>
                             <div className="w-full h-full rounded-full overflow-hidden relative">
                                 <img 
-                                    src={getProfilePic(currentProfile?.profile_pic)} // Using fresh state
+                                    src={getProfilePic(currentProfile?.profile_pic)} 
                                     className="w-full h-full object-cover"
                                     onError={(e) => e.target.src = `${process.env.NEXT_PUBLIC_IMAGE_BASE_URL}GMPSimages/default-admin.jpg`}
+                                    loading="lazy"
                                 />
                             </div>
-                            {/* Decorative Ring */}
-                            <div className={`absolute -inset-2 rounded-full border border-dashed opacity-40 animate-[spin_10s_linear_infinite] ${isSuperAdmin ? 'border-amber-500' : 'border-indigo-500'}`}></div>
                         </div>
 
-                        {/* Name & Info */}
                         <h1 className="text-3xl font-black tracking-tighter text-center mb-1 text-gray-900 dark:text-white">
                             {currentProfile?.name || "Administrator"}
                         </h1>
@@ -273,26 +283,19 @@ export default function AdminProfile() {
                     {/* BENTO GRID LAYOUT */}
                     <div className="px-4 max-w-lg mx-auto">
                         <div className="grid grid-cols-2 gap-3 mb-3">
-                            {/* Stat 1 */}
                             <div className={`p-5 rounded-3xl border flex flex-col items-center justify-center gap-1 shadow-xl bg-white dark:bg-[#151515] border-gray-100 dark:border-neutral-800`}>
                                 <span className={`text-4xl font-black ${isSuperAdmin ? 'text-amber-500' : 'text-indigo-600'}`}>{stats.students}</span>
                                 <span className="text-[10px] text-gray-500 font-bold uppercase">Students</span>
                             </div>
-                            {/* Stat 2 */}
                             <div className={`p-5 rounded-3xl border flex flex-col items-center justify-center gap-1 shadow-xl bg-white dark:bg-[#151515] border-gray-100 dark:border-neutral-800`}>
                                 <span className={`text-4xl font-black ${isSuperAdmin ? 'text-pink-500' : 'text-pink-600'}`}>{stats.teachers}</span>
                                 <span className="text-[10px] text-gray-500 font-bold uppercase">Teachers</span>
                             </div>
                         </div>
 
-                        {/* Navigation Grid */}
                         <div className="grid grid-cols-1 gap-3">
-                            {/* Inbox (Super Admin Only) */}
                             {isSuperAdmin && (
-                                <button 
-                                    onClick={() => openSection('suggestions')}
-                                    className="w-full bg-white dark:bg-[#1A1A1A] border border-gray-100 dark:border-neutral-800 p-4 rounded-3xl flex items-center justify-between group hover:border-amber-500/50 transition-all shadow-sm"
-                                >
+                                <button onClick={() => openSection('suggestions')} className="w-full bg-white dark:bg-[#1A1A1A] border border-gray-100 dark:border-neutral-800 p-4 rounded-3xl flex items-center justify-between group hover:border-amber-500/50 transition-all shadow-sm">
                                     <div className="flex items-center gap-4">
                                         <div className="w-10 h-10 rounded-full bg-amber-500/10 flex items-center justify-center text-amber-500">
                                             <Mail size={20} />
@@ -306,11 +309,7 @@ export default function AdminProfile() {
                                 </button>
                             )}
 
-                            {/* Manage Students (Big Button) */}
-                            <button 
-                                onClick={() => openSection('students')}
-                                className={`w-full p-6 rounded-3xl flex flex-col items-start gap-4 shadow-xl transition-all relative overflow-hidden group ${isSuperAdmin ? 'bg-amber-500 text-black' : 'bg-indigo-600 text-white'}`}
-                            >
+                            <button onClick={() => openSection('students')} className={`w-full p-6 rounded-3xl flex flex-col items-start gap-4 shadow-xl transition-all relative overflow-hidden group ${isSuperAdmin ? 'bg-amber-500 text-black' : 'bg-indigo-600 text-white'}`}>
                                 <div className="absolute right-[-20px] top-[-20px] opacity-20 rotate-12 group-hover:scale-110 transition-transform duration-500">
                                     <GraduationCap size={120} />
                                 </div>
@@ -323,7 +322,6 @@ export default function AdminProfile() {
                                 </div>
                             </button>
 
-                            {/* Split Bottom Grid */}
                             <div className="grid grid-cols-2 gap-3">
                                 {isSuperAdmin && (
                                     <>
@@ -361,9 +359,7 @@ export default function AdminProfile() {
                         </div>
                     </div>
 
-                    {/* --- TAB CONTENT CONTAINER --- */}
                     <div className="px-4 mt-6">
-                        
                         {/* 1. SUGGESTIONS */}
                         {activeTab === 'suggestions' && isSuperAdmin && (
                             <div className="space-y-3">
@@ -372,16 +368,13 @@ export default function AdminProfile() {
                                     <motion.div initial={{opacity:0, y:10}} animate={{opacity:1, y:0}} key={s.id} className="bg-white dark:bg-[#151515] p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-neutral-800">
                                         <div className="flex justify-between items-start mb-2">
                                             <div className="flex items-center gap-3">
-                                                <img src={`${process.env.NEXT_PUBLIC_IMAGE_BASE_URL}${s.profile_pic || 'GMPSimages/default_student.png'}`} className="w-8 h-8 rounded-full object-cover bg-gray-100"/>
+                                                <img src={`${process.env.NEXT_PUBLIC_IMAGE_BASE_URL}${s.profile_pic || 'GMPSimages/default_student.png'}`} className="w-8 h-8 rounded-full object-cover bg-gray-100" loading="lazy"/>
                                                 <div>
                                                     <h4 className="text-sm font-bold">{s.name}</h4>
                                                     <p className="text-[10px] text-gray-400">{s.class_name}</p>
                                                 </div>
                                             </div>
-                                            <button 
-                                                onClick={() => setConfirmModal({ type: 'suggestion', id: s.id })}
-                                                className="text-gray-300 hover:text-red-500 p-1"
-                                            >
+                                            <button onClick={() => confirmDelete('suggestion', s.id)} className="text-gray-300 hover:text-red-500 p-1">
                                                 <Trash2 size={16} />
                                             </button>
                                         </div>
@@ -394,27 +387,18 @@ export default function AdminProfile() {
                         {/* 2. STUDENTS MANAGER */}
                         {activeTab === 'students' && (
                             <div>
-                                {/* App Styled Filter Dropdown */}
                                 <div className="mb-6">
                                     <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2 block ml-2">Select Class View</label>
                                     <div className="relative">
-                                        <select 
-                                            className={dropdownStyle}
-                                            onChange={(e) => loadStudents(e.target.value)}
-                                            value={selectedClass || ""}
-                                        >
+                                        <select className={dropdownStyle} onChange={(e) => loadStudents(e.target.value)} value={selectedClass || ""}>
                                             <option value="" disabled>Choose a class...</option>
                                             {classes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                                         </select>
                                     </div>
                                 </div>
 
-                                {/* Student Grid */}
                                 <div className="grid grid-cols-2 gap-3 pb-10">
-                                    <button 
-                                        onClick={() => setAddModalType('student')}
-                                        className="bg-indigo-50 dark:bg-indigo-900/10 border-2 border-dashed border-indigo-200 dark:border-indigo-800 rounded-2xl p-4 flex flex-col items-center justify-center gap-2 text-indigo-600 dark:text-indigo-400 min-h-[120px]"
-                                    >
+                                    <button onClick={() => setAddModalType('student')} className="bg-indigo-50 dark:bg-indigo-900/10 border-2 border-dashed border-indigo-200 dark:border-indigo-800 rounded-2xl p-4 flex flex-col items-center justify-center gap-2 text-indigo-600 dark:text-indigo-400 min-h-[120px]">
                                         <div className="w-10 h-10 rounded-full bg-white dark:bg-[#151515] flex items-center justify-center shadow-sm">
                                             <Plus size={20} />
                                         </div>
@@ -425,17 +409,8 @@ export default function AdminProfile() {
                                         <p className="col-span-2 text-center text-xs text-gray-400 py-4">Loading...</p>
                                     ) : (
                                         classStudents.map(s => (
-                                            <motion.div 
-                                                key={s.id} 
-                                                whileTap={{scale:0.98}}
-                                                onClick={() => openStudentDetail(s.id)}
-                                                className="bg-white dark:bg-[#151515] p-3 rounded-2xl shadow-sm border border-gray-100 dark:border-neutral-800 flex flex-col items-center text-center cursor-pointer"
-                                            >
-                                                <img 
-                                                    src={`${process.env.NEXT_PUBLIC_IMAGE_BASE_URL}${s.profile_pic || 'GMPSimages/default_student.png'}`} 
-                                                    className="w-12 h-12 rounded-full object-cover mb-2 bg-gray-100 border border-gray-100 dark:border-gray-700"
-                                                    loading="lazy"
-                                                />
+                                            <motion.div key={s.id} whileTap={{scale:0.98}} onClick={() => openStudentDetail(s.id)} className="bg-white dark:bg-[#151515] p-3 rounded-2xl shadow-sm border border-gray-100 dark:border-neutral-800 flex flex-col items-center text-center cursor-pointer">
+                                                <img src={`${process.env.NEXT_PUBLIC_IMAGE_BASE_URL}${s.profile_pic || 'GMPSimages/default_student.png'}`} className="w-12 h-12 rounded-full object-cover mb-2 bg-gray-100 border border-gray-100 dark:border-gray-700" loading="lazy" />
                                                 <h4 className="text-xs font-bold line-clamp-1">{s.name}</h4>
                                                 <p className="text-[10px] text-gray-400">Roll: {s.roll_no || '-'}</p>
                                             </motion.div>
@@ -448,16 +423,13 @@ export default function AdminProfile() {
                         {/* 3. TEACHERS MANAGER */}
                         {activeTab === 'teachers' && isSuperAdmin && (
                             <div className="grid grid-cols-1 gap-3 pb-10">
-                                <button 
-                                    onClick={() => setAddModalType('teacher')}
-                                    className="bg-indigo-600 text-white p-4 rounded-2xl text-sm font-bold shadow-lg shadow-indigo-500/30 flex items-center justify-center gap-2 mb-2"
-                                >
+                                <button onClick={() => setAddModalType('teacher')} className="bg-indigo-600 text-white p-4 rounded-2xl text-sm font-bold shadow-lg shadow-indigo-500/30 flex items-center justify-center gap-2 mb-2">
                                     <Plus size={18}/> Add New Teacher
                                 </button>
                                 
                                 {teachers.map(t => (
                                     <motion.div whileTap={{scale:0.98}} onClick={() => openTeacherDetail(t.id)} key={t.id} className="bg-white dark:bg-[#151515] p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-neutral-800 flex items-center gap-4 cursor-pointer">
-                                        <img src={`${process.env.NEXT_PUBLIC_IMAGE_BASE_URL}${t.profile_pic || 'GMPSimages/default_teacher.png'}`} className="w-12 h-12 rounded-full object-cover bg-gray-100 border border-gray-100 dark:border-gray-700" />
+                                        <img src={`${process.env.NEXT_PUBLIC_IMAGE_BASE_URL}${t.profile_pic || 'GMPSimages/default_teacher.png'}`} className="w-12 h-12 rounded-full object-cover bg-gray-100 border border-gray-100 dark:border-gray-700" loading="lazy" />
                                         <div>
                                             <h4 className="font-bold text-sm">{t.name}</h4>
                                             <p className="text-[10px] text-indigo-500 font-bold">
@@ -478,7 +450,7 @@ export default function AdminProfile() {
                                 </button>
                                 {admins.map(a => (
                                     <motion.div whileTap={{scale:0.98}} onClick={() => openAdminDetail(a)} key={a.id} className="bg-white dark:bg-[#151515] p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-neutral-800 flex items-center gap-4 cursor-pointer">
-                                        <img src={`${process.env.NEXT_PUBLIC_IMAGE_BASE_URL}${a.profile_pic || 'GMPSimages/default-admin.jpg'}`} className="w-10 h-10 rounded-full object-cover bg-gray-100 border border-gray-100 dark:border-gray-700" />
+                                        <img src={`${process.env.NEXT_PUBLIC_IMAGE_BASE_URL}${a.profile_pic || 'GMPSimages/default-admin.jpg'}`} className="w-10 h-10 rounded-full object-cover bg-gray-100 border border-gray-100 dark:border-gray-700" loading="lazy" />
                                         <div>
                                             <h4 className="font-bold text-sm">{a.name}</h4>
                                             <span className="text-[9px] bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded-md">{a.level == 1 ? 'Super Admin' : 'Admin'}</span>
@@ -504,12 +476,13 @@ export default function AdminProfile() {
                             
                             <form ref={editFormRef} onSubmit={handleSave} className="space-y-6">
                                 
-                                {/* Header Image & Edit Toggle */}
+                                {/* Header Image */}
                                 <div className="flex flex-col items-center">
                                     <div className="w-24 h-24 rounded-full border-4 border-gray-100 dark:border-gray-800 overflow-hidden mb-3 relative group bg-gray-100">
                                         <img 
                                             src={`${process.env.NEXT_PUBLIC_IMAGE_BASE_URL}${detailModal.data.profile?.profile_pic || detailModal.data.profile_pic || 'GMPSimages/default_student.png'}`} 
                                             className="w-full h-full object-cover"
+                                            loading="lazy"
                                         />
                                         {editMode && (
                                             <div className="absolute inset-0 bg-black/50 flex items-center justify-center cursor-pointer">
@@ -524,7 +497,6 @@ export default function AdminProfile() {
                                     </p>
                                 </div>
 
-                                {/* Toggle Edit Button */}
                                 {!editMode && (
                                     <div className="flex justify-center">
                                         <button type="button" onClick={() => setEditMode(true)} className="bg-black dark:bg-white text-white dark:text-black px-6 py-2 rounded-full text-xs font-bold flex items-center gap-2">
@@ -653,10 +625,10 @@ export default function AdminProfile() {
                                 <div className="pt-6 border-t border-gray-100 dark:border-gray-800">
                                     <button 
                                         type="button"
-                                        onClick={() => setConfirmModal({ 
-                                            type: detailModal.type, 
-                                            id: detailModal.type === 'student' ? detailModal.data.profile.id : detailModal.data.id 
-                                        })}
+                                        onClick={() => confirmDelete(
+                                            detailModal.type, 
+                                            detailModal.type === 'student' ? detailModal.data.profile.id : detailModal.data.id
+                                        )}
                                         className="w-full text-red-500 text-xs font-bold py-3 flex items-center justify-center gap-2 hover:bg-red-50 dark:hover:bg-red-900/10 rounded-xl transition-colors"
                                     >
                                         <Trash2 size={16} /> Delete Permanently
@@ -745,29 +717,6 @@ export default function AdminProfile() {
                 )}
             </AnimatePresence>
 
-            {/* --- CONFIRMATION & TOAST --- */}
-            <AnimatePresence>
-                {toast && (
-                    <motion.div initial={{opacity:0, y:50}} animate={{opacity:1, y:0}} exit={{opacity:0}} className="fixed bottom-24 left-0 right-0 flex justify-center z-[110]">
-                        <div className="bg-black dark:bg-white text-white dark:text-black px-6 py-3 rounded-full text-xs font-bold shadow-xl flex items-center gap-2">
-                            <CheckCircle2 size={16}/> {toast.msg}
-                        </div>
-                    </motion.div>
-                )}
-                {confirmModal && (
-                    <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/50 backdrop-blur-sm p-6">
-                        <div className="bg-white dark:bg-[#1a1a1a] w-full max-w-sm p-6 rounded-3xl shadow-2xl text-center">
-                            <div className="w-12 h-12 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto mb-4"><AlertCircle/></div>
-                            <h3 className="font-bold text-lg mb-2">Are you sure?</h3>
-                            <div className="flex gap-3 mt-6">
-                                <button onClick={() => setConfirmModal(null)} className="flex-1 py-3 bg-gray-100 dark:bg-gray-800 rounded-xl font-bold text-xs">Cancel</button>
-                                <button onClick={handleDelete} className="flex-1 py-3 bg-red-600 text-white rounded-xl font-bold text-xs">Delete</button>
-                            </div>
-                        </div>
-                    </div>
-                )}
-            </AnimatePresence>
-
         </div>
     );
 }
@@ -778,12 +727,36 @@ const Input = ({ label, name, val, edit, type = "text", textArea = false, placeh
         <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">{label}</label>
         {edit ? (
             textArea ? (
-                <textarea name={name} defaultValue={val} className="w-full p-3 bg-gray-50 dark:bg-neutral-900 border-2 border-gray-100 dark:border-neutral-800 rounded-xl text-sm font-semibold outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all" rows="2" />
+                <textarea name={name} defaultValue={val} className="w-full p-3 bg-gray-50 dark:bg-neutral-900 border-2 border-gray-100 dark:border-neutral-800 rounded-xl text-sm font-semibold outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all dark:text-white" rows="2" />
             ) : (
-                <input type={type} name={name} defaultValue={val} placeholder={placeholder} required={required} className="w-full p-3 bg-gray-50 dark:bg-neutral-900 border-2 border-gray-100 dark:border-neutral-800 rounded-xl text-sm font-semibold outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all" />
+                <input type={type} name={name} defaultValue={val} placeholder={placeholder} required={required} className="w-full p-3 bg-gray-50 dark:bg-neutral-900 border-2 border-gray-100 dark:border-neutral-800 rounded-xl text-sm font-semibold outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all dark:text-white" />
             )
         ) : (
             <div className="text-sm font-bold text-gray-800 dark:text-gray-200 border-b border-gray-100 dark:border-neutral-800 pb-1">{val || '-'}</div>
         )}
     </div>
 );
+
+// --- SKELETON COMPONENT ---
+function AdminSkeleton() {
+    return (
+        <div className="min-h-screen bg-gray-50 dark:bg-[#0a0a0a] pb-24">
+            <div className="pt-12 pb-10 px-6 flex flex-col items-center justify-center">
+                <div className="w-32 h-32 rounded-full bg-gray-200 dark:bg-gray-800 skeleton mb-4"></div>
+                <div className="h-8 w-48 bg-gray-200 dark:bg-gray-800 rounded-full skeleton mb-2"></div>
+                <div className="h-4 w-32 bg-gray-200 dark:bg-gray-800 rounded-full skeleton"></div>
+            </div>
+            
+            <div className="px-4 max-w-lg mx-auto">
+                <div className="grid grid-cols-2 gap-3 mb-3">
+                    <div className="h-24 bg-gray-200 dark:bg-gray-800 rounded-3xl skeleton"></div>
+                    <div className="h-24 bg-gray-200 dark:bg-gray-800 rounded-3xl skeleton"></div>
+                </div>
+                <div className="space-y-3">
+                    <div className="h-20 bg-gray-200 dark:bg-gray-800 rounded-3xl skeleton"></div>
+                    <div className="h-24 bg-gray-200 dark:bg-gray-800 rounded-3xl skeleton"></div>
+                </div>
+            </div>
+        </div>
+    )
+}

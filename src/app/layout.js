@@ -1,10 +1,14 @@
 "use client";
 
 import "./globals.css";
-import RouteGuard from "../components/RouteGuard";
+// CORRECT PATH: Go up 1 level -> src -> components -> AppBottomNav
 import AppBottomNav from "../components/AppBottomNav"; 
 
-// CORRECT PATH: Go up 1 level -> src -> context -> AuthContext
+// NEW COMPONENTS
+import NetworkStatus from "../components/NetworkStatus";
+import PullToRefresh from "../components/PullToRefresh";
+import RouteGuard from "../components/RouteGuard";
+
 import { AuthProvider } from "../context/AuthContext";
 import { ThemeProvider } from "../context/ThemeContext";
 // NEW: Import Modal Provider
@@ -20,11 +24,14 @@ export default function RootLayout({ children }) {
           <AuthProvider>
             <ThemeProvider>
               <ModalProvider>
+                <NetworkStatus />
                 <RouteGuard>
-                <div className="min-h-screen pb-24 relative overflow-x-hidden">
-                  {children}
-                </div>
-                <AppBottomNav />
+                  <PullToRefresh>
+                    <div className="min-h-screen pb-24 relative overflow-x-hidden">
+                      {children}
+                    </div>
+                  </PullToRefresh>
+                  <AppBottomNav />
                 </RouteGuard>
               </ModalProvider>
             </ThemeProvider>
