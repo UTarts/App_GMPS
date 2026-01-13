@@ -8,7 +8,7 @@ export default function AppBottomNav() {
   const pathname = usePathname();
   const { user } = useAuth(); 
 
-  // FIX: Normalize path here too
+  // ROBUST FIX: Normalize path here too
   const normalizedPath = pathname?.endsWith('/') && pathname.length > 1 
     ? pathname.slice(0, -1) 
     : pathname;
@@ -33,7 +33,6 @@ export default function AppBottomNav() {
 
   return (
     <div className="fixed bottom-0 left-0 w-full h-[70px] bg-white dark:bg-[#151515] border-t border-gray-200 dark:border-gray-800 z-50 flex justify-around items-center shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] pb-2 transition-colors duration-300">
-      
       <NavItem href="/?source=twa" icon={Home} label="Home" isActive={normalizedPath === '/'} useReplace={useReplace} />
       
       {user?.role === 'student' && (
@@ -52,7 +51,6 @@ export default function AppBottomNav() {
       <NavItem href="/gallery?source=twa" icon={ImageIcon} label="Gallery" isActive={normalizedPath === '/gallery'} useReplace={useReplace} />
       
       <NavItem href={profilePath} icon={User} label="Profile" isActive={profileActive} useReplace={useReplace} />
-
     </div>
   );
 }

@@ -8,18 +8,19 @@ export default function RouteGuard({ children }) {
   const router = useRouter();
   const pathname = usePathname();
 
-  // FIX: Normalize path by removing trailing slash for consistent comparison
+  // ROBUST FIX: Remove the slash from the end if it exists.
+  // This ensures '/login/' is treated exactly the same as '/login'
   const normalizedPath = pathname?.endsWith('/') && pathname.length > 1 
     ? pathname.slice(0, -1) 
     : pathname;
 
   useEffect(() => {
     if (!loading) {
-      // 1. Not logged in + trying to access protected page -> Redirect to Login
+      // 1. Not logged in + trying to access a protected page -> Go to Login
       if (!user && normalizedPath !== '/login') {
         router.replace('/login');
       }
-      // 2. Logged in + trying to access login page -> Redirect to Home
+      // 2. Logged in + trying to access login page -> Go to Home
       if (user && normalizedPath === '/login') {
         router.replace('/?source=twa'); 
       }
@@ -30,11 +31,10 @@ export default function RouteGuard({ children }) {
   if (loading) return <div className="h-screen w-screen bg-white dark:bg-black" />;
 
   // Render Check
-  // Allow render if: User is on Login page OR User is logged in
   if (normalizedPath === '/login' || user) {
     return children;
   }
 
-  // Otherwise block (returns blank while redirecting)
+  // Block rendering while redirecting
   return null; 
 }
