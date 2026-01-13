@@ -8,26 +8,33 @@ export default function RouteGuard({ children }) {
   const router = useRouter();
   const pathname = usePathname();
 
+  // FIX: Normalize path by removing trailing slash for consistent comparison
+  const normalizedPath = pathname?.endsWith('/') && pathname.length > 1 
+    ? pathname.slice(0, -1) 
+    : pathname;
+
   useEffect(() => {
     if (!loading) {
-      // If NOT logged in AND trying to access a page that isn't login
-      if (!user && pathname !== '/login') {
+      // 1. Not logged in + trying to access protected page -> Redirect to Login
+      if (!user && normalizedPath !== '/login') {
         router.replace('/login');
       }
-      // If LOGGED IN and trying to access login page
-      if (user && pathname === '/login') {
-        router.replace('/?source=twa'); // Send to home
+      // 2. Logged in + trying to access login page -> Redirect to Home
+      if (user && normalizedPath === '/login') {
+        router.replace('/?source=twa'); 
       }
     }
-  }, [user, loading, pathname, router]);
+  }, [user, loading, normalizedPath, router]);
 
-  // Show nothing while checking (prevents flickering)
+  // Loading Screen
   if (loading) return <div className="h-screen w-screen bg-white dark:bg-black" />;
 
-  // If on login page, or if we have a user, render the page
-  if (pathname === '/login' || user) {
+  // Render Check
+  // Allow render if: User is on Login page OR User is logged in
+  if (normalizedPath === '/login' || user) {
     return children;
   }
 
-  return null; // Block rendering otherwise
+  // Otherwise block (returns blank while redirecting)
+  return null; 
 }

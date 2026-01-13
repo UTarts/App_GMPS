@@ -1,0 +1,36 @@
+<IfModule mod_rewrite.c>
+  Options +FollowSymLinks
+  RewriteEngine On
+  RewriteBase /
+
+  RewriteCond %{HTTPS} off
+  RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+
+  RewriteCond %{REQUEST_FILENAME} -f [OR]
+  RewriteCond %{REQUEST_FILENAME} -d
+  RewriteRule ^ - [L]
+
+  RewriteRule ^ index.html [L]
+</IfModule>
+
+# <IfModule mod_rewrite.c>
+#   Options +FollowSymLinks
+#   RewriteEngine On
+#   RewriteBase /
+
+#   # 1. If the request is for a specific file that exists (like image.png), serve it.
+#   RewriteCond %{REQUEST_FILENAME} -f
+#   RewriteRule ^ - [L]
+
+#   # 2. If the request is for a directory that exists, serve it.
+#   RewriteCond %{REQUEST_FILENAME} -d
+#   RewriteRule ^ - [L]
+
+#   # 3. If the request matches a .html file (e.g. /login -> /login.html), serve that.
+#   RewriteCond %{REQUEST_FILENAME}.html -f
+#   RewriteRule ^(.*)$ $1.html [L]
+
+#   # 4. For everything else (dynamic routes), fallback to index.html
+#   # This lets Next.js handle the routing on the phone/browser.
+#   RewriteRule ^ index.html [L]
+# </IfModule>

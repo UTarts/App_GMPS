@@ -8,7 +8,13 @@ export default function AppBottomNav() {
   const pathname = usePathname();
   const { user } = useAuth(); 
 
-  if (pathname === '/login') return null;
+  // FIX: Normalize path here too
+  const normalizedPath = pathname?.endsWith('/') && pathname.length > 1 
+    ? pathname.slice(0, -1) 
+    : pathname;
+
+  // Don't show nav on login page
+  if (normalizedPath === '/login') return null;
 
   // Determine Profile Path based on Role
   let profilePath = '/profile?source=twa';
@@ -17,39 +23,34 @@ export default function AppBottomNav() {
 
   // Determine active state for profile
   const profileActive = user?.role === 'admin' 
-    ? pathname.startsWith('/admin') && !pathname.startsWith('/admin/posts') // Don't highlight profile when on posts
+    ? normalizedPath.startsWith('/admin') && !normalizedPath.startsWith('/admin/posts') 
     : user?.role === 'teacher' 
-        ? pathname.startsWith('/teacher') 
-        : pathname.startsWith('/profile');
+        ? normalizedPath.startsWith('/teacher') 
+        : normalizedPath.startsWith('/profile');
 
   // --- HYBRID NAVIGATION LOGIC ---
-  // If on Home, PUSH new pages (so Back button returns to Home).
-  // If on inner pages, REPLACE (so we don't stack pages infinitely).
-  const useReplace = pathname !== '/';
+  const useReplace = normalizedPath !== '/';
 
   return (
     <div className="fixed bottom-0 left-0 w-full h-[70px] bg-white dark:bg-[#151515] border-t border-gray-200 dark:border-gray-800 z-50 flex justify-around items-center shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] pb-2 transition-colors duration-300">
       
-      <NavItem href="/?source=twa" icon={Home} label="Home" isActive={pathname === '/'} useReplace={useReplace} />
+      <NavItem href="/?source=twa" icon={Home} label="Home" isActive={normalizedPath === '/'} useReplace={useReplace} />
       
-      {/* Role Based Middle Button */}
       {user?.role === 'student' && (
-          <NavItem href="/work?source=twa" icon={BookOpen} label="Work" isActive={pathname === '/work'} useReplace={useReplace} />
+          <NavItem href="/work?source=twa" icon={BookOpen} label="Work" isActive={normalizedPath === '/work'} useReplace={useReplace} />
       )}
 
       {user?.role === 'teacher' && user?.assigned_class_id && (
-          <NavItem href="/attendance?source=twa" icon={CheckSquare} label="Attendance" isActive={pathname === '/attendance'} useReplace={useReplace} />
+          <NavItem href="/attendance?source=twa" icon={CheckSquare} label="Attendance" isActive={normalizedPath === '/attendance'} useReplace={useReplace} />
       )}
 
-      {/* Admin Post Button */}
       {user?.role === 'admin' && (
-          <NavItem href="/admin/posts" icon={Shield} label="Posts" isActive={pathname === '/admin/posts'} useReplace={useReplace} />
+          <NavItem href="/admin/posts" icon={Shield} label="Posts" isActive={normalizedPath === '/admin/posts'} useReplace={useReplace} />
       )}
 
-      <NavItem href="/events?source=twa" icon={Calendar} label="Updates" isActive={pathname === '/events'} useReplace={useReplace} />
-      <NavItem href="/gallery?source=twa" icon={ImageIcon} label="Gallery" isActive={pathname === '/gallery'} useReplace={useReplace} />
+      <NavItem href="/events?source=twa" icon={Calendar} label="Updates" isActive={normalizedPath === '/events'} useReplace={useReplace} />
+      <NavItem href="/gallery?source=twa" icon={ImageIcon} label="Gallery" isActive={normalizedPath === '/gallery'} useReplace={useReplace} />
       
-      {/* Profile Button */}
       <NavItem href={profilePath} icon={User} label="Profile" isActive={profileActive} useReplace={useReplace} />
 
     </div>
