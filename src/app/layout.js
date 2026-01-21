@@ -1,7 +1,6 @@
 "use client";
 
 import "./globals.css";
-// CORRECT PATH: Go up 1 level -> src -> components -> AppBottomNav
 import AppBottomNav from "../components/AppBottomNav"; 
 
 // GLOBAL FEATURES
@@ -9,13 +8,17 @@ import NetworkStatus from "../components/NetworkStatus";
 import PullToRefresh from "../components/PullToRefresh";
 import RouteGuard from "../components/RouteGuard";
 
-// CORRECT PATH: Go up 1 level -> src -> context -> AuthContext
 import { AuthProvider } from "../context/AuthContext";
 import { ThemeProvider } from "../context/ThemeContext";
 import { ModalProvider } from "../context/ModalContext";
+import useFcmToken from "../hooks/useFcmToken";
+import NotificationManager from "../components/NotificationManager";
 
 import { Suspense } from "react";
-
+function FcmHandler() {
+  useFcmToken();
+  return null; 
+}
 export default function RootLayout({ children }) {
   return (
     <html lang="en" suppressHydrationWarning>
@@ -34,6 +37,8 @@ export default function RootLayout({ children }) {
             <ThemeProvider>
               <ModalProvider>
                 <NetworkStatus />
+                <NotificationManager />
+                <FcmHandler />
                 <RouteGuard>
                   <PullToRefresh>
                     <div className="min-h-screen pb-24 relative overflow-x-hidden">

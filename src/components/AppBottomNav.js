@@ -8,13 +8,8 @@ export default function AppBottomNav() {
   const pathname = usePathname();
   const { user } = useAuth(); 
 
-  // ROBUST FIX: Normalize path here too
-  const normalizedPath = pathname?.endsWith('/') && pathname.length > 1 
-    ? pathname.slice(0, -1) 
-    : pathname;
-
-  // Don't show nav on login page
-  if (normalizedPath === '/login') return null;
+  // ROBUST FIX: Do not show nav on ANY login-related path
+  if (pathname?.includes('/login')) return null;
 
   // Determine Profile Path based on Role
   let profilePath = '/profile?source=twa';
@@ -22,35 +17,38 @@ export default function AppBottomNav() {
   if (user?.role === 'admin') profilePath = '/admin';
 
   // Determine active state for profile
+  // We use includes/startsWith to be safe against trailing slashes
   const profileActive = user?.role === 'admin' 
-    ? normalizedPath.startsWith('/admin') && !normalizedPath.startsWith('/admin/posts') 
+    ? pathname.startsWith('/admin') && !pathname.includes('/posts') 
     : user?.role === 'teacher' 
-        ? normalizedPath.startsWith('/teacher') 
-        : normalizedPath.startsWith('/profile');
+        ? pathname.startsWith('/teacher') 
+        : pathname.startsWith('/profile');
 
   // --- HYBRID NAVIGATION LOGIC ---
-  const useReplace = normalizedPath !== '/';
+  const useReplace = pathname !== '/';
 
   return (
     <div className="fixed bottom-0 left-0 w-full h-[70px] bg-white dark:bg-[#151515] border-t border-gray-200 dark:border-gray-800 z-50 flex justify-around items-center shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] pb-2 transition-colors duration-300">
-      <NavItem href="/?source=twa" icon={Home} label="Home" isActive={normalizedPath === '/'} useReplace={useReplace} />
+      
+      <NavItem href="/?source=twa" icon={Home} label="Home" isActive={pathname === '/' || pathname === '/'} useReplace={useReplace} />
       
       {user?.role === 'student' && (
-          <NavItem href="/work?source=twa" icon={BookOpen} label="Work" isActive={normalizedPath === '/work'} useReplace={useReplace} />
+          <NavItem href="/work?source=twa" icon={BookOpen} label="Work" isActive={pathname.startsWith('/work')} useReplace={useReplace} />
       )}
 
       {user?.role === 'teacher' && user?.assigned_class_id && (
-          <NavItem href="/attendance?source=twa" icon={CheckSquare} label="Attendance" isActive={normalizedPath === '/attendance'} useReplace={useReplace} />
+          <NavItem href="/attendance?source=twa" icon={CheckSquare} label="Attendance" isActive={pathname.startsWith('/attendance')} useReplace={useReplace} />
       )}
 
       {user?.role === 'admin' && (
-          <NavItem href="/admin/posts" icon={Shield} label="Posts" isActive={normalizedPath === '/admin/posts'} useReplace={useReplace} />
+          <NavItem href="/admin/posts" icon={Shield} label="Posts" isActive={pathname.includes('/posts')} useReplace={useReplace} />
       )}
 
-      <NavItem href="/events?source=twa" icon={Calendar} label="Updates" isActive={normalizedPath === '/events'} useReplace={useReplace} />
-      <NavItem href="/gallery?source=twa" icon={ImageIcon} label="Gallery" isActive={normalizedPath === '/gallery'} useReplace={useReplace} />
+      <NavItem href="/events?source=twa" icon={Calendar} label="Updates" isActive={pathname.startsWith('/events')} useReplace={useReplace} />
+      <NavItem href="/gallery?source=twa" icon={ImageIcon} label="Gallery" isActive={pathname.startsWith('/gallery')} useReplace={useReplace} />
       
       <NavItem href={profilePath} icon={User} label="Profile" isActive={profileActive} useReplace={useReplace} />
+
     </div>
   );
 }
