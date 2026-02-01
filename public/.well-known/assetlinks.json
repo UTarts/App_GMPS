@@ -1,0 +1,14 @@
+
+  [
+    {
+      "relation": ["delegate_permission/common.handle_all_urls"],
+      "target": {
+        "namespace": "android_app",
+        "package_name": "com.govindmadhav.application.twa",
+        "sha256_cert_fingerprints": [
+          "SHA256: AB:69:2F:0B:98:D3:53:D2:30:E8:F1:89:AE:CD:1A:25:74:2D:85:15:B6:D1:DD:E9:E9:D0:26:DC:A0:8E:3F:F5",
+          "F2:A0:CB:0B:11:B4:B3:E7:B0:C3:FB:4E:BA:E6:4D:E4:75:45:96:7E:7D:DA:1B:FC:81:4A:03:76:F7:64:26:62"
+        ]
+      }
+    }
+  ]

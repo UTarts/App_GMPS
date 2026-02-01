@@ -2,7 +2,7 @@
     "name": "Govind Madhav Public School App",
     "short_name": "GMPS",
     "description": "Govind Madhav Public School Official App",
-    "start_url": "/",
+    "start_url": "/?source=twa",
     "display": "standalone",
     "background_color": "#ffffff",
     "theme_color": "#4f46e5",

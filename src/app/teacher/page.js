@@ -491,8 +491,12 @@ function ToppersSection({ classId, students, onBack, showModal }) {
                 </div>
                 <div className="space-y-4">
                     {[1, 2, 3].map(rank => (
-                        <div key={rank} className="bg-white dark:bg-[#151515] p-4 rounded-xl border border-gray-100 dark:border-gray-800 shadow-sm relative overflow-hidden">
-                            <div className={`absolute top-0 left-0 w-1 h-full ${rank===1?'bg-yellow-400':rank===2?'bg-gray-400':'bg-orange-400'}`}></div>
+                        <div 
+                            key={rank} 
+                            className="bg-white dark:bg-[#151515] p-4 rounded-xl border border-gray-100 dark:border-gray-800 shadow-sm relative"
+                        >
+                            <div className={`absolute top-0 left-0 w-1 h-full rounded-l-xl ${rank===1?'bg-yellow-400':rank===2?'bg-gray-400':'bg-orange-400'}`}></div>
+                            
                             <h4 className="font-bold mb-3 dark:text-white flex items-center gap-2">
                                 <span className="text-lg">
                                     {rank === 1 ? '🥇' : rank === 2 ? '🥈' : '🥉'}

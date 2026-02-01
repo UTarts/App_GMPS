@@ -1,43 +1,63 @@
 "use client";
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useAuth } from "../context/AuthContext";
 import { useTheme } from "../context/ThemeContext";
-import { useAppModal } from "../context/ModalContext"; // Import Modal
+import { useAppModal } from "../context/ModalContext"; 
 import { motion, AnimatePresence } from "framer-motion";
+import NotificationSidebar from '../components/NotificationSidebar';
 import { 
   Moon, Sun, Bell, BookOpen, Image as ImageIcon, Calendar, 
-  Award, Edit3, Users, Send, Phone, Mail, MapPin, ArrowRight, Share2, Shield, CheckCircle2, X 
+  Award, Edit3, Users, Send, Phone, Mail, MapPin, ArrowRight, Share2, Shield, CheckCircle2, X, Loader2 
 } from 'lucide-react';
 import Link from 'next/link';
 
 export default function Home() {
   const { user } = useAuth();
   const { theme, toggleTheme } = useTheme();
-  const { showModal } = useAppModal(); // Use Modal Hook
-  
+  const { showModal } = useAppModal();
+  const [isNotifOpen, setIsNotifOpen] = useState(false);
   const [data, setData] = useState(null);
   const [currentSlide, setCurrentSlide] = useState(0);
   const [loading, setLoading] = useState(true);
   const [viewImage, setViewImage] = useState(null);
 
-  // --- BACK BUTTON INTERCEPTOR ---
+  // Suggestion State
+  const [suggestion, setSuggestion] = useState("");
+  const [sendingSuggestion, setSendingSuggestion] = useState(false);
+
+  // --- 1. BLOCK INSTALL PROMPT & BROWSER VISUALS ---
   useEffect(() => {
-    // 1. Push a dummy state to history so 'popstate' can fire
+    // Prevent the "Install App" browser prompt
+    const handleInstallPrompt = (e) => {
+      e.preventDefault();
+    };
+    window.addEventListener('beforeinstallprompt', handleInstallPrompt);
+    return () => window.removeEventListener('beforeinstallprompt', handleInstallPrompt);
+  }, []);
+
+  // --- 2. BACK BUTTON INTERCEPTOR (FIXED EXIT) ---
+  const isExiting = useRef(false);
+
+  useEffect(() => {
+    // Push initial trap
     window.history.pushState(null, null, window.location.pathname);
 
     const handlePopState = (event) => {
-      // 2. Prevent the browser from actually going back
+      if (isExiting.current) return;
+
+      // Re-push trap immediately to prevent accidental exit
       window.history.pushState(null, null, window.location.pathname);
       
-      // 3. Show Exit Modal
       showModal(
         "Exit App?", 
         "Are you sure you want to exit the application?", 
         "danger", 
         () => {
-           // If they confirm, try to close window (works in TWA/PWA)
-           // or redirect to a generic exit page if window.close is blocked
-           try { window.close(); } catch(e) { console.log('Close blocked'); }
+           isExiting.current = true; 
+           // Tiny delay ensures the history stack is ready for the double-jump
+           setTimeout(() => {
+             window.history.go(-2);
+           }, 10);
         },
         "Exit App",
         "Stay"
@@ -48,7 +68,7 @@ export default function Home() {
     return () => window.removeEventListener('popstate', handlePopState);
   }, [showModal]);
 
-  // 1. Fetch Data
+  // --- 3. DATA FETCHING ---
   useEffect(() => {
     async function fetchData() {
       try {
@@ -59,7 +79,7 @@ export default function Home() {
         });
         const json = await res.json();
 
-        // B. Fetch "What's Today" Poster (NEW LOGIC)
+        // B. Fetch "What's Today" Poster
         const wtRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/admin_posts.php?action=get_whats_today_public`);
         const wtJson = await wtRes.json();
 
@@ -77,10 +97,10 @@ export default function Home() {
         setLoading(false);
       }
     }
-    if (user) fetchData(); // Only fetch if user exists
+    if (user) fetchData(); 
   }, [user]);
 
-  // 2. Slideshow Timer
+  // --- 4. SLIDESHOW TIMER ---
   useEffect(() => {
     if (!data?.slides || data.slides.length === 0) return;
     const timer = setInterval(() => {
@@ -89,20 +109,52 @@ export default function Home() {
     return () => clearInterval(timer);
   }, [data?.slides]);
 
-  // 3. Share Function
+  // --- 5. SHARE FUNCTION ---
   const handleShare = async () => {
     if (navigator.share) {
       try {
         await navigator.share({
           title: 'Govind Madhav Public School',
-          text: 'Check out our school app!',
-          url: window.location.origin,
+          text: 'Check out our school Website!',
+          url: 'https://govindmadhav.com/',
         });
       } catch (error) {
         console.log('Error sharing', error);
       }
     } else {
       showModal("Share", "Share not supported on this browser.", "neutral");
+    }
+  };
+
+  // --- 6. SUGGESTION SUBMIT FUNCTION (NEW) ---
+  const handleSuggestionSubmit = async (e) => {
+    e.preventDefault();
+    if (!suggestion.trim()) return;
+
+    setSendingSuggestion(true);
+    try {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/submit_feedback.php`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          user_id: user?.id, 
+          role: user?.role,
+          message: suggestion 
+        })
+      });
+      
+      const result = await res.json();
+      
+      if (result.success || result.status === 'success') {
+        showModal("Sent!", "Your suggestion has been sent to the admin.", "success");
+        setSuggestion(""); // Clear form
+      } else {
+        showModal("Error", "Could not send suggestion. Please try again.", "danger");
+      }
+    } catch (error) {
+      showModal("Error", "Network error. Please check your connection.", "danger");
+    } finally {
+      setSendingSuggestion(false);
     }
   };
 
@@ -131,9 +183,10 @@ export default function Home() {
   if (loading) return <HomeSkeleton />;
 
   return (
-    <div className="min-h-screen bg-[#F2F6FA] dark:bg-[#0a0a0a] text-gray-800 dark:text-gray-100 font-sans overflow-x-hidden">
+    // Added overscroll-none to prevent browser pull-to-refresh visuals
+    <div className="h-screen overflow-y-auto bg-[#F2F6FA] dark:bg-[#0a0a0a] text-gray-800 dark:text-gray-100 font-sans overflow-x-hidden overscroll-none">
       
-      {/* --- 1. APP HEADER --- */}
+      {/* --- APP HEADER --- */}
       <div className="sticky top-0 z-50 bg-white/95 dark:bg-black/95 backdrop-blur-md border-b border-gray-100 dark:border-gray-800 px-5 py-3 flex justify-between items-center shadow-sm">
         <div className="flex items-center gap-3">
             <img 
@@ -152,22 +205,22 @@ export default function Home() {
            <button onClick={toggleTheme} className="w-9 h-9 rounded-full bg-gray-50 dark:bg-gray-800 flex items-center justify-center text-gray-600 dark:text-yellow-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
              {theme === 'light' ? <Moon size={18} /> : <Sun size={18} />}
            </button>
-           <button className="w-9 h-9 rounded-full bg-gray-50 dark:bg-gray-800 flex items-center justify-center text-gray-600 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors relative">
-             <Bell size={18} />
-             <span className="absolute top-2 right-2.5 w-2 h-2 bg-red-500 rounded-full ring-2 ring-white dark:ring-black"></span>
-           </button>
+           <div 
+               onClick={() => setIsNotifOpen(true)}
+               className="w-9 h-9 rounded-full bg-gray-50 dark:bg-gray-800 flex items-center justify-center text-gray-600 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700 transition-all relative cursor-pointer active:scale-95"
+            >
+               <Bell size={18} />
+               <div className="absolute top-2 right-2.5 w-2 h-2 bg-red-500 rounded-full ring-2 ring-white dark:ring-black" />
+            </div>
         </div>
       </div>
 
-      {/* --- 2. DYNAMIC PROFILE CARD  --- */}
+      {/* --- PROFILE CARD --- */}
       <div className="px-4 mt-6 mb-8">
         <div className="relative">
           <div className={`bg-gradient-to-r ${getCardStyle()} rounded-[2.5rem] p-7 text-white shadow-xl flex justify-between items-center relative overflow-hidden min-h-[150px]`}>
-              
-              {/* Background Blur */}
               <div className="absolute -left-10 -bottom-20 w-48 h-48 bg-white/10 rounded-full blur-3xl pointer-events-none"></div>
 
-              {/* Text Info */}
               <div className="flex flex-col relative z-10 flex-1 min-w-0 pr-2">
                   <p className="text-white/80 text-[11px] font-bold uppercase tracking-widest mb-0.5">Welcome Back</p>
                   <h2 className={`font-black leading-tight tracking-tight mb-4 ${
@@ -177,8 +230,6 @@ export default function Home() {
                   }`}>
                   {getDisplayName()}
                   </h2>
-                  
-                  {/* Designation Badge */}
                   <div className="inline-block self-start">
                       <span className="bg-black/20 backdrop-blur-md text-white text-[11px] font-bold px-4 py-2 rounded-full shadow-sm border border-white/10">
                           {getBadgeText()}
@@ -186,7 +237,6 @@ export default function Home() {
                   </div>
               </div>
 
-              {/* Profile Picture Inside Card */}
               <div className="relative z-20 -mr-3 flex-shrink-0"> 
                   <div className="w-28 h-28 rounded-full shadow-none bg-gray-200 overflow-hidden">
                       <img 
@@ -201,7 +251,7 @@ export default function Home() {
         </div>
       </div>
 
-      {/* --- 3. HERO SLIDESHOW --- */}
+      {/* --- HERO SLIDESHOW --- */}
       <div className="px-4 mb-8">
         <div className="w-full h-48 rounded-[1.5rem] overflow-hidden shadow-md relative bg-gray-200 dark:bg-gray-800">
           <AnimatePresence mode='wait'>
@@ -228,12 +278,10 @@ export default function Home() {
         </div>
       </div>
 
-      {/* --- 4. NEW: WHAT'S TODAY SECTION --- */}
+      {/* --- WHAT'S TODAY --- */}
       {data?.whatsToday && (
         <div className="px-4 mb-8">
            <div className="bg-white dark:bg-[#151515] p-4 rounded-[2rem] shadow-sm border border-gray-100 dark:border-gray-800 flex items-center justify-between relative overflow-hidden">
-              
-              {/* Left Side: Date & Text */}
               <div className="relative z-10 pl-2">
                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">
                     {new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).toUpperCase()}
@@ -244,7 +292,6 @@ export default function Home() {
                  </h2>
               </div>
 
-              {/* Right Side: The Poster Image */}
               <div 
                 className="w-40 h-40 rounded-2xl overflow-hidden shadow-md border-2 border-white dark:border-gray-700 cursor-pointer active:scale-95 transition-transform"
                 onClick={() => setViewImage(`${process.env.NEXT_PUBLIC_IMAGE_BASE_URL}${data.whatsToday.image_url}`)}
@@ -256,22 +303,17 @@ export default function Home() {
                     alt="Today's Special"
                  />
               </div>
-
-              {/* Decorative Blur */}
               <div className="absolute right-0 top-0 w-32 h-32 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none -mr-10 -mt-10"></div>
            </div>
         </div>
       )}
 
-      {/* --- 5. DASHBOARD (Big Blue Card + Rectangles) --- */}
+      {/* --- DASHBOARD --- */}
       <div className="px-4 mb-8">
          <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3 ml-1">Quick Access</h3>
          
          <div className="flex flex-col gap-3">
-            
-            {/* BIG BLUE CARD (Logic for Admin Added) */}
             <motion.div whileTap={{ scale: 0.98 }}>
-              {/* Link Destination Logic */}
               <Link 
                 href={
                     user?.role === 'admin' ? "/admin/posts" : 
@@ -283,20 +325,15 @@ export default function Home() {
                  <div className="relative z-10 flex items-center justify-between">
                     <div>
                        <div className="w-10 h-10 rounded-xl bg-white/20 backdrop-blur-md flex items-center justify-center mb-3 border border-white/10">
-                         {/* Icon Logic */}
                          {user?.role === 'admin' ? <Shield size={20} /> : 
                           user?.role === 'teacher' ? <Edit3 size={20} /> : 
                           <BookOpen size={20} />}
                        </div>
-                       
-                       {/* Title Logic */}
                        <h4 className="text-xl font-bold">
                            {user?.role === 'admin' ? 'Post Update' : 
                             user?.role === 'teacher' ? 'Teacher App' : 
                             'Daily Work'}
                        </h4>
-                       
-                       {/* Subtitle Logic */}
                        <p className="text-blue-100 text-xs mt-1 opacity-90">
                            {user?.role === 'admin' ? 'Post an update' : 
                             user?.role === 'teacher' ? 'Update HW & Notices' : 
@@ -310,7 +347,6 @@ export default function Home() {
               </Link>
             </motion.div>
 
-            {/* TWO RECTANGULAR CARDS */}
             <div className="grid grid-cols-2 gap-3">
                 <Link href="/gallery?source=twa" className="bg-white dark:bg-[#151515] p-4 rounded-[1.5rem] shadow-sm border border-gray-100 dark:border-gray-800 flex flex-col justify-between h-32 relative overflow-hidden">
                    <div className="w-9 h-9 rounded-full bg-purple-50 dark:bg-purple-900/20 text-purple-600 flex items-center justify-center">
@@ -335,7 +371,7 @@ export default function Home() {
          </div>
       </div>
 
-      {/* --- 6. CLASS TOPPERS --- */}
+      {/* --- CLASS TOPPERS --- */}
       {data?.show_toppers && user?.role !== 'admin' && data?.toppers?.length > 0 && (
         <div className="mb-8 px-4">
            <div className="flex justify-between items-center mb-3 ml-1">
@@ -368,7 +404,6 @@ export default function Home() {
                     <p className="text-[10px] font-bold text-gray-800 dark:text-white leading-tight line-clamp-2 min-h-[2.5em] w-full break-words">
                         {top.student_name}
                     </p>
-                    
                     <span className="text-[9px] text-blue-600 dark:text-blue-400 font-bold mt-1 bg-blue-50 dark:bg-blue-900/20 px-2 py-0.5 rounded-full">
                        {top.percentage}%
                     </span>
@@ -378,7 +413,7 @@ export default function Home() {
         </div>
       )}
 
-      {/* --- 7. NOTICE BOARD --- */}
+      {/* --- NOTICE BOARD --- */}
       <div className="px-4 mb-8">
          <div className="flex justify-between items-end mb-3 ml-1">
             <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest">Notice Board</h3>
@@ -417,7 +452,7 @@ export default function Home() {
          </div>
       </div>
 
-      {/* --- 8. BENTO GALLERY GRID --- */}
+      {/* --- GALLERY GRID --- */}
       <div className="px-4 mb-8">
          <div className="flex justify-between items-end mb-3 ml-1">
             <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest">LATEST MOMENTS</h3>
@@ -466,7 +501,7 @@ export default function Home() {
          </div>
       </div>
 
-      {/* --- 9. ADMIN THOUGHTS --- */}
+      {/* --- ADMIN THOUGHTS --- */}
       <div className="mb-10 px-4">
          <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3 ml-1">Administration</h3>
          <div className="flex gap-3 overflow-x-auto pb-4 no-scrollbar">
@@ -492,7 +527,7 @@ export default function Home() {
          </div>
       </div>
       
-      {/* --- 10. FEEDBACK FORM --- */}
+      {/* --- FEEDBACK FORM (FIXED) --- */}
       {user?.role === 'student' && (
         <div className="px-4 mb-12">
            <div className="bg-gradient-to-br from-emerald-500 to-teal-700 rounded-[1.5rem] p-6 text-white shadow-lg shadow-emerald-500/20 relative overflow-hidden">
@@ -502,14 +537,22 @@ export default function Home() {
                 </h3>
                 <p className="text-emerald-100 text-xs mb-4 opacity-90">Your voice matters. Let us know how we can improve.</p>
                 
-                <form className="relative">
+                <form className="relative" onSubmit={handleSuggestionSubmit} autoComplete="off">
                    <textarea 
                      className="w-full bg-white/10 border border-white/20 rounded-xl p-3 text-sm text-white placeholder-emerald-100/50 focus:outline-none focus:bg-white/20 transition-colors resize-none" 
                      rows="2" 
                      placeholder="Write here..."
+                     value={suggestion}
+                     onChange={(e) => setSuggestion(e.target.value)}
+                     required
+                     autoComplete="off"
                    ></textarea>
-                   <button className="absolute bottom-3 right-3 bg-white text-teal-700 p-2 rounded-lg shadow-sm hover:scale-105 transition-transform">
-                      <Send size={16} />
+                   <button 
+                      type="submit" 
+                      disabled={sendingSuggestion}
+                      className="absolute bottom-3 right-3 bg-white text-teal-700 p-2 rounded-lg shadow-sm hover:scale-105 transition-transform disabled:opacity-50"
+                   >
+                      {sendingSuggestion ? <Loader2 className="animate-spin" size={16} /> : <Send size={16} />}
                    </button>
                 </form>
               </div>
@@ -517,7 +560,7 @@ export default function Home() {
         </div>
       )}
 
-      {/* --- 11. SHARE CARD --- */}
+      {/* --- SHARE CARD --- */}
       <div className="px-4 mb-8">
          <div onClick={handleShare} className="bg-indigo-600 rounded-2xl p-4 flex items-center justify-between text-white shadow-lg shadow-indigo-500/20 cursor-pointer active:scale-95 transition-transform">
             <div className="flex items-center gap-3">
@@ -525,7 +568,7 @@ export default function Home() {
                   <Share2 size={20} />
                </div>
                <div>
-                  <h4 className="font-bold text-sm">Share App</h4>
+                  <h4 className="font-bold text-sm">Share School Website</h4>
                   <p className="text-[10px] text-indigo-200">Invite friends to GMPS</p>
                </div>
             </div>
@@ -533,7 +576,7 @@ export default function Home() {
          </div>
       </div>
 
-      {/* --- 12. FOOTER --- */}
+      {/* --- FOOTER --- */}
       <div className="pt-8 pb-10 text-center border-t border-gray-200 dark:border-gray-800 bg-white dark:bg-[#050505]">
          <div className="flex justify-center gap-6 mb-6">
             {data?.contacts?.phone && (
@@ -565,9 +608,13 @@ export default function Home() {
             <span className="text-[9px] text-gray-400 tracking-wider font-medium">visit www.utarts.in</span>
          </a>
       </div>
+      <NotificationSidebar 
+                isOpen={isNotifOpen} 
+                onClose={() => setIsNotifOpen(false)} 
+            />
 
-{/* --- IMAGE LIGHTBOX MODAL --- */}
-<AnimatePresence>
+      {/* --- IMAGE LIGHTBOX --- */}
+      <AnimatePresence>
         {viewImage && (
           <motion.div
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
@@ -580,7 +627,6 @@ export default function Home() {
             >
               <X size={24} />
             </button>
-            
             <motion.img
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
@@ -591,16 +637,14 @@ export default function Home() {
           </motion.div>
         )}
       </AnimatePresence>
-
     </div>
   );
 }
 
-// --- SKELETON LOADER COMPONENT ---
+// --- SKELETON ---
 function HomeSkeleton() {
   return (
     <div className="min-h-screen bg-[#F2F6FA] dark:bg-[#0a0a0a] p-4 space-y-6">
-        {/* Header Skeleton */}
         <div className="flex justify-between items-center py-2">
             <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-full bg-gray-200 dark:bg-gray-800 skeleton" />
@@ -614,17 +658,9 @@ function HomeSkeleton() {
                 <div className="w-9 h-9 rounded-full bg-gray-200 dark:bg-gray-800 skeleton" />
             </div>
         </div>
-
-        {/* Profile Card Skeleton */}
         <div className="h-40 rounded-[2.5rem] bg-gray-200 dark:bg-gray-800 skeleton w-full" />
-
-        {/* Slideshow Skeleton */}
         <div className="h-48 rounded-[1.5rem] bg-gray-200 dark:bg-gray-800 skeleton w-full" />
-
-        {/* What's Today Skeleton */}
         <div className="h-48 rounded-[2rem] bg-gray-200 dark:bg-gray-800 skeleton w-full" />
-
-        {/* Dashboard Grid Skeleton */}
         <div className="grid grid-cols-2 gap-3">
             <div className="h-32 rounded-[2rem] bg-gray-200 dark:bg-gray-800 skeleton col-span-2" />
             <div className="h-32 rounded-[1.5rem] bg-gray-200 dark:bg-gray-800 skeleton" />

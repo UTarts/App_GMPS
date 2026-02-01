@@ -65,8 +65,7 @@ export default function LoginPage() {
   const selectedClassName = classes.find(c => c.id == classId)?.name || "Select your class";
 
   return (
-    // Fixed Viewport Container (No scrolling, no padding issues)
-    <div className="h-screen w-full bg-[#F2F6FA] flex flex-col justify-center items-center overflow-hidden relative">
+    <div className="fixed inset-0 w-full h-[100dvh] bg-[#F2F6FA] flex flex-col justify-center items-center overflow-hidden overscroll-none relative">
       
       {/* 1. Header Logo */}
       <motion.div 
@@ -217,7 +216,6 @@ export default function LoginPage() {
         </form>
       </motion.div>
       
-      {/* Decorative Background Blob */}
       <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-blue-200/20 rounded-full blur-3xl pointer-events-none"></div>
       <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-purple-200/20 rounded-full blur-3xl pointer-events-none"></div>
 

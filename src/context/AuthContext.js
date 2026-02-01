@@ -7,19 +7,36 @@ const AuthContext = createContext();
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
+  const [accounts, setAccounts] = useState([]); // Store all family accounts
   const [loading, setLoading] = useState(true);
   const router = useRouter();
 
-  // 1. Check if user is already logged in (on page refresh)
+  // 1. Initialize & Migration Logic
   useEffect(() => {
-    const storedUser = localStorage.getItem('gmps_user');
-    if (storedUser) {
-      setUser(JSON.parse(storedUser));
-    }
-    setLoading(false);
+    const initAuth = () => {
+      const storedAccounts = JSON.parse(localStorage.getItem('gmps_family_accounts') || '[]');
+      const activeIndex = parseInt(localStorage.getItem('gmps_active_index') || '0');
+      const oldSingleUser = JSON.parse(localStorage.getItem('gmps_user'));
+
+      // MIGRATION: If user has old single account but no family list, convert them.
+      if (storedAccounts.length === 0 && oldSingleUser) {
+        const initialFamily = [oldSingleUser];
+        setAccounts(initialFamily);
+        setUser(oldSingleUser);
+        localStorage.setItem('gmps_family_accounts', JSON.stringify(initialFamily));
+        localStorage.setItem('gmps_active_index', '0');
+      } 
+      // NORMAL LOAD
+      else if (storedAccounts.length > 0) {
+        setAccounts(storedAccounts);
+        setUser(storedAccounts[activeIndex] || storedAccounts[0]);
+      }
+      setLoading(false);
+    };
+    initAuth();
   }, []);
 
-  // 2. Login Function
+  // 2. Standard Login
   const login = async (userid, password, role, class_id = null) => {
     try {
       const payload = { userid, password, role };
@@ -35,21 +52,19 @@ export function AuthProvider({ children }) {
 
       if (data.status === 'success') {
         const userData = { ...data.user, role };
-        setUser(userData);
-        localStorage.setItem('gmps_user', JSON.stringify(userData));
         
-        // --- STRICT REDIRECTION LOGIC (Matches your PHP) ---
-        // 1. Check if we are in TWA mode
-        const isTWA = window.location.search.includes('source=twa') || localStorage.getItem('view_mode') === 'twa';
+        // Start a fresh family list
+        const newFamily = [userData];
+        setAccounts(newFamily);
+        setUser(userData);
+        
+        localStorage.setItem('gmps_family_accounts', JSON.stringify(newFamily));
+        localStorage.setItem('gmps_active_index', '0');
+        localStorage.setItem('gmps_user', JSON.stringify(userData)); 
 
-        if (isTWA) {
-          // APP USER -> Goes to Home (App Home)
-          router.push('/?source=twa');
-        } else {
-          // WEBSITE USER -> Goes to Profile (Website Dashboard)
-          // We will map this to a new page '/dashboard' or '/profile'
-          router.push('/profile'); 
-        }
+        // Redirect logic
+        const isTWA = window.location.search.includes('source=twa') || localStorage.getItem('view_mode') === 'twa';
+        router.push(isTWA ? '/?source=twa' : '/profile');
         
         return { success: true };
       } else {
@@ -59,16 +74,72 @@ export function AuthProvider({ children }) {
       return { success: false, message: "Network error. Check connection." };
     }
   };
+
+  // 3. Add Student Account
+  const addStudentAccount = async (userid, password, class_id) => {
+    try {
+      const payload = { userid, password, role: 'student', class_id };
+      
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/login.php`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await res.json();
+
+      if (data.status === 'success') {
+        const newStudent = { ...data.user, role: 'student' };
+        
+        // Check duplicates
+        const exists = accounts.some(acc => acc.id === newStudent.id && acc.role === 'student');
+        if (exists) return { success: false, message: "Student already added." };
+
+        // Append and Save
+        const updatedAccounts = [...accounts, newStudent];
+        setAccounts(updatedAccounts);
+        localStorage.setItem('gmps_family_accounts', JSON.stringify(updatedAccounts));
+        
+        // Auto-switch to new user (This will trigger the redirect in switchAccount)
+        switchAccount(updatedAccounts.length - 1);
+        
+        return { success: true };
+      } else {
+        return { success: false, message: data.message || "Invalid credentials" };
+      }
+    } catch (error) {
+      return { success: false, message: "Network Error" };
+    }
+  };
+
+  // 4. Switch Account (UPDATED)
+  const switchAccount = (index) => {
+    if (!accounts[index]) return;
+    
+    const newUser = accounts[index];
+    setUser(newUser);
+    localStorage.setItem('gmps_active_index', index.toString());
+    localStorage.setItem('gmps_user', JSON.stringify(newUser)); 
+    
+    // --- FIX: Redirect to Profile Page ---
+    // We use window.location.href to force a "fresh load" of the Profile page.
+    // We also preserve the '?source=twa' query if it exists, so the app stays in App Mode.
+    const query = window.location.search; 
+    window.location.href = `/profile${query}`;
+  };
   
-  // 3. Logout Function
+  // 5. Logout
   const logout = () => {
     setUser(null);
+    setAccounts([]);
     localStorage.removeItem('gmps_user');
+    localStorage.removeItem('gmps_family_accounts');
+    localStorage.removeItem('gmps_active_index');
     router.push('/login');
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, logout, loading }}>
+    <AuthContext.Provider value={{ user, accounts, login, logout, switchAccount, addStudentAccount, loading }}>
       {children}
     </AuthContext.Provider>
   );

@@ -3,47 +3,87 @@ importScripts('https://www.gstatic.com/firebasejs/9.23.0/firebase-messaging-comp
 
 firebase.initializeApp({
   apiKey: "AIzaSyBRpOeqWF5caOfu0L3PSWnxUz9yoczspuk",
-    authDomain: "gmps-app.firebaseapp.com",
-    projectId: "gmps-app",
-    storageBucket: "gmps-app.firebasestorage.app",
-    messagingSenderId: "118069160830",
-    appId: "1:118069160830:web:15d5878ad25298c2bde12f"
+  authDomain: "gmps-app.firebaseapp.com",
+  projectId: "gmps-app",
+  storageBucket: "gmps-app.firebasestorage.app",
+  messagingSenderId: "118069160830",
+  appId: "1:118069160830:web:15d5878ad25298c2bde12f"
 });
 
 const messaging = firebase.messaging();
 
+// --- 1. INDEXED DB HELPER (To Save Background Msgs) ---
+function saveMessageToDB(title, body, url) {
+  return new Promise((resolve) => {
+    const request = indexedDB.open('GMPS_DB', 1);
+    
+    request.onupgradeneeded = (event) => {
+      const db = event.target.result;
+      if (!db.objectStoreNames.contains('notifications')) {
+        db.createObjectStore('notifications', { keyPath: 'id', autoIncrement: true });
+      }
+    };
+
+    request.onsuccess = (event) => {
+      const db = event.target.result;
+      const tx = db.transaction('notifications', 'readwrite');
+      const store = tx.objectStore('notifications');
+      
+      store.add({
+        title: title,
+        body: body,
+        url: url || '/',
+        date: new Date().toLocaleDateString('en-IN'),
+        timestamp: Date.now()
+      });
+
+      tx.oncomplete = () => { db.close(); resolve(); };
+    };
+    
+    request.onerror = () => resolve(); // Fail silently
+  });
+}
+
+// --- 2. HANDLE BACKGROUND MESSAGE ---
 messaging.onBackgroundMessage((payload) => {
-  console.log('[firebase-messaging-sw.js] Received background message ', payload);
+  console.log('[firebase-messaging-sw.js] Background Message:', payload);
   
-  const notificationTitle = payload.notification.title;
+  const title = payload.notification.title;
+  const body = payload.notification.body;
+  const url = payload.data?.url || '/';
+
+  // A. Save to Database (So Sidebar can see it later)
+  saveMessageToDB(title, body, url);
+
+  // B. Show Notification
   const notificationOptions = {
-    body: payload.notification.body,
-    icon: '/icon-192.png', 
-    badge: '/icon-192.png'
+    body: body,
+    icon: '/icon-192.png',
+    badge: '/icon-192.png',
+    data: { url: url }
   };
 
-  self.registration.showNotification(notificationTitle, notificationOptions);
+  self.registration.showNotification(title, notificationOptions);
 });
 
-// Handle Notification Click
+// --- 3. HANDLE CLICK (Opens App) ---
 self.addEventListener('notificationclick', function(event) {
-  console.log('[firebase-messaging-sw.js] Notification click received.');
-  
-  event.notification.close(); // 1. Close the notification
+  event.notification.close();
 
-  // 2. Open the App
+  const urlToOpen = event.notification.data?.url || '/';
+
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function(clientList) {
-      // A. If app is already open, focus it
+      // If app is already open, focus it
       for (let i = 0; i < clientList.length; i++) {
         const client = clientList[i];
         if (client.url.includes(self.registration.scope) && 'focus' in client) {
-          return client.focus();
+          return client.focus().then(c => c.navigate(urlToOpen));
         }
       }
-      // B. If app is closed, open it
+      // If closed, open new
       if (clients.openWindow) {
-        return clients.openWindow('/');
+        return clients.openWindow(urlToOpen);
       }
     })
   );

@@ -1,25 +1,27 @@
 "use client";
 import { useEffect, useState } from 'react';
 import { useAuth } from "../../context/AuthContext";
-import { useAppModal } from "../../context/ModalContext"; // Import Modal
+import { useAppModal } from "../../context/ModalContext"; 
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
-  LogOut, MapPin, Phone, User, Calendar as CalendarIcon, 
-  ChevronLeft, ChevronRight , ChevronUp, ChevronDown, Download, X
+   MapPin, Phone, User, Calendar as CalendarIcon, 
+   ChevronLeft, ChevronRight , ChevronUp, ChevronDown, 
+   Download, X, Settings, CreditCard // <--- Added CreditCard Icon
 } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import Link from 'next/link';
 
 export default function ProfilePage() {
   const { user, logout } = useAuth();
-  const { showModal } = useAppModal(); // Use Modal Hook
+  const { showModal } = useAppModal(); 
   
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('overview'); 
   const [expandedExam, setExpandedExam] = useState(null); 
   const [selectedDay, setSelectedDay] = useState(new Date().toLocaleDateString('en-US', { weekday: 'long' }));
-  const [viewImage, setViewImage] = useState(null); // Lightbox state
+  const [viewImage, setViewImage] = useState(null); 
 
   // Calendar State
   const getDaysInMonth = (month, year) => new Date(year, month + 1, 0).getDate();
@@ -52,10 +54,9 @@ export default function ProfilePage() {
     );
   };
 
-  // --- HELPER: Convert Image URL to Base64 (Using Proxy) ---
+  // --- HELPER: Convert Image URL to Base64 ---
   const getImageData = async (dbPath) => {
     if (!dbPath) return null;
-    // Use the PHP Proxy to bypass CORS
     const proxyUrl = `${process.env.NEXT_PUBLIC_API_URL}/proxy_image.php?path=${encodeURIComponent(dbPath)}`;
     try {
         const res = await fetch(proxyUrl);
@@ -71,31 +72,27 @@ export default function ProfilePage() {
     }
   };
 
-  // --- PDF GENERATION LOGIC (UNCHANGED) ---
+  // --- PDF GENERATION LOGIC ---
   const handleDownloadReport = async (exam) => {
      const doc = new jsPDF();
      const p = data.profile;
      const pageWidth = doc.internal.pageSize.getWidth();
      const pageHeight = doc.internal.pageSize.getHeight();
      
-     // 1. Determine Style
      let style = 'Standard';
      const cls = p.class_name || '';
      if (cls.match(/Nur|K1|K2|LKG|UKG/i)) style = 'Playful';
      else if (cls.match(/^(6|7|8|9|10|11|12)/)) style = 'Professional';
 
-     // 2. Load Images (Async via Proxy)
      const [logoBase64, profileBase64] = await Promise.all([
          getImageData('GMPSimages/GMPS.header.logo.png'), 
          getImageData(p.profile_pic)
      ]);
 
-     // 3. Dynamic Session
      const curMonth = new Date().getMonth() + 1; 
      const curYear = new Date().getFullYear();
      const session = curMonth < 4 ? `${curYear-1}-${curYear}` : `${curYear}-${curYear+1}`;
 
-     // --- HEADER (Universal) ---
      if (logoBase64) {
         const imgProps = doc.getImageProperties(logoBase64);
         const imgWidth = 80;
@@ -108,7 +105,6 @@ export default function ProfilePage() {
         doc.text("Gondey, Pratapgarh, U.P.", pageWidth/2, 28, { align: 'center' });
      }
 
-     // Session & Title
      const headerY = logoBase64 ? 38 : 40;
      doc.setFontSize(10); doc.setTextColor(100);
      doc.text(`Academic Session: ${session}`, pageWidth/2, headerY, { align: 'center' });
@@ -118,7 +114,6 @@ export default function ProfilePage() {
 
      let yPos = headerY + 20;
 
-     // --- STYLE: PLAYFUL (Colorful & Adjusted) ---
      if (style === 'Playful') {
          doc.setDrawColor(255, 165, 0); 
          doc.setLineWidth(1.5);
@@ -164,8 +159,6 @@ export default function ProfilePage() {
              footStyles: { fillColor: [255, 228, 181], textColor: 0, fontStyle: 'bold' }
          });
      } 
-     
-     // --- STYLE: STANDARD (Clean Blue) ---
      else if (style === 'Standard') {
          doc.setDrawColor(200); doc.setLineWidth(0.5);
          doc.rect(15, yPos, pageWidth-30, 50);
@@ -198,8 +191,6 @@ export default function ProfilePage() {
              footStyles: { fillColor: [240, 240, 240], textColor: 0, fontStyle: 'bold' }
          });
      }
-
-     // --- STYLE: PROFESSIONAL (Minimalist) ---
      else {
          doc.setDrawColor(0); doc.setLineWidth(0.2);
          doc.line(15, yPos, pageWidth-15, yPos); 
@@ -232,7 +223,6 @@ export default function ProfilePage() {
          });
      }
 
-     // Footer
      const finalY = doc.lastAutoTable.finalY + 30;
      doc.setFont("helvetica", "bold"); doc.setFontSize(10); doc.setTextColor(0);
      doc.text("Class Teacher", 20, finalY);
@@ -291,7 +281,6 @@ export default function ProfilePage() {
 
   const currentStats = getMonthlyStats();
 
-  // --- SKELETON LOADER ---
   if (loading) return <ProfileSkeleton />;
 
   const p = data?.profile;
@@ -303,9 +292,13 @@ export default function ProfilePage() {
       {/* HEADER */}
       <div className="sticky top-0 z-40 bg-white/90 dark:bg-black/90 backdrop-blur-md border-b border-gray-200 dark:border-gray-800 px-5 py-4 flex justify-between items-center shadow-sm">
         <h1 className="text-xl font-bold text-gray-900 dark:text-white tracking-tight">My Profile</h1>
-        <button onClick={handleLogout} className="flex items-center gap-2 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 px-3 py-1.5 rounded-full text-xs font-bold transition-colors hover:bg-red-100 dark:hover:bg-red-900/30">
-            <LogOut size={14} /> Logout
-        </button>
+        <Link 
+            href="/settings" 
+            className="flex flex-col items-center justify-center gap-0.5 text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
+            >
+            <Settings size={20} />
+            <span className="text-[10px] font-bold leading-none">Settings</span>
+        </Link>
       </div>
 
       <div className="px-4 mt-6">
@@ -376,6 +369,26 @@ export default function ProfilePage() {
                             <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">Overall Attendance</span>
                         </div>
                     </div>
+
+                    {/* --- FEES BUTTON (Inserted Here) --- */}
+                    <div className="mb-4">
+                        <Link href="/fees" className="bg-gradient-to-r from-indigo-500 to-blue-600 rounded-[1.5rem] p-5 text-white shadow-lg shadow-blue-500/20 flex items-center justify-between group active:scale-98 transition-transform">
+                            <div className="flex items-center gap-4">
+                                <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center backdrop-blur-md">
+                                    <CreditCard size={20} />
+                                </div>
+                                <div>
+                                    <h3 className="font-bold text-lg leading-none mb-1">Fee Center</h3>
+                                    <p className="text-blue-100 text-xs">Pay dues & view receipts</p>
+                                </div>
+                            </div>
+                            <div className="flex flex-col items-end">
+                                <span className="bg-white/20 px-2 py-0.5 rounded text-[10px] font-bold uppercase mb-1">View</span>
+                                <ChevronRight size={20} className="opacity-70 group-hover:translate-x-1 transition-transform" />
+                            </div>
+                        </Link>
+                    </div>
+
                     <div className="bg-white dark:bg-[#151515] p-5 rounded-[1.5rem] border border-gray-100 dark:border-gray-800 shadow-sm">
                         <h3 className="text-sm font-bold text-gray-400 uppercase tracking-widest mb-4">Personal Details</h3>
                         <div className="space-y-4">
@@ -449,7 +462,7 @@ export default function ProfilePage() {
                         ))}
                          {(!data?.exams || data.exams.length === 0) && (
                              <p className="text-center text-gray-400 text-xs py-4">No exam results available.</p>
-                         )}
+                          )}
                     </div>
                 </motion.div>
             )}

@@ -161,7 +161,7 @@ export default function UpdatesPage() {
                 {activeTab === 'timeline' && (
                     <motion.div key="timeline" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="relative pl-2 pt-2">
                         <div className="absolute left-[27px] top-4 bottom-0 w-[2px] bg-gray-200 dark:bg-gray-800"></div>
-                        {data.events.map((evt, i) => {
+                        {data.events.sort((a, b) => new Date(b.event_date) - new Date(a.event_date)).map((evt, i) => {
                             const d = new Date(evt.event_date);
                             return (
                                 <div key={i} className="relative flex gap-5 mb-8">
