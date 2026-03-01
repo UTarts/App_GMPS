@@ -7,7 +7,12 @@ import { motion, AnimatePresence } from "framer-motion";
 import NotificationSidebar from '../components/NotificationSidebar';
 import { 
   Moon, Sun, Bell, BookOpen, Image as ImageIcon, Calendar, 
-  Award, Edit3, Users, Send, Phone, Mail, MapPin, ArrowRight, Share2, Shield, CheckCircle2, X, Loader2 
+  Award, Edit3, Users, User, Send, Phone, Mail, MapPin, ArrowRight, Share2, 
+  Shield, CheckCircle2, X, Loader2, CreditCard, FileText, Clock, 
+  Settings, UserCheck, PenTool, MonitorPlay, PlayCircle, CalendarMinus, 
+  Library, Bus, CalendarDays, BarChart3, CalendarRange, 
+  Gift, Book, Download, GraduationCap, Megaphone, HelpCircle, 
+  Trophy, PhoneCall, NotebookPen, FileSpreadsheet, Activity, Wallet, MessageSquare
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -21,13 +26,15 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [viewImage, setViewImage] = useState(null);
 
-  // Suggestion State
   const [suggestion, setSuggestion] = useState("");
   const [sendingSuggestion, setSendingSuggestion] = useState(false);
 
+  // --- MOCK DATA FOR THE CREATIVE BENTO (Will be replaced by API later) ---
+  const mockFeeDue = "4,500";
+  const mockAttendance = "76%";
+
   // --- 1. BLOCK INSTALL PROMPT & BROWSER VISUALS ---
   useEffect(() => {
-    // Prevent the "Install App" browser prompt
     const handleInstallPrompt = (e) => {
       e.preventDefault();
     };
@@ -39,13 +46,10 @@ export default function Home() {
   const isExiting = useRef(false);
 
   useEffect(() => {
-    // Push initial trap
     window.history.pushState(null, null, window.location.pathname);
 
     const handlePopState = (event) => {
       if (isExiting.current) return;
-
-      // Re-push trap immediately to prevent accidental exit
       window.history.pushState(null, null, window.location.pathname);
       
       showModal(
@@ -54,7 +58,6 @@ export default function Home() {
         "danger", 
         () => {
            isExiting.current = true; 
-           // Tiny delay ensures the history stack is ready for the double-jump
            setTimeout(() => {
              window.history.go(-2);
            }, 10);
@@ -72,18 +75,15 @@ export default function Home() {
   useEffect(() => {
     async function fetchData() {
       try {
-        // A. Fetch Standard Home Data
         const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/home.php`, {
           method: 'POST',
           body: JSON.stringify({ user_id: user?.id, role: user?.role })
         });
         const json = await res.json();
 
-        // B. Fetch "What's Today" Poster
         const wtRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/admin_posts.php?action=get_whats_today_public`);
         const wtJson = await wtRes.json();
 
-        // C. Combine Data
         if(json.status === 'success') {
             const combinedData = { ...json.data };
             if (wtJson.status === 'success') {
@@ -126,7 +126,7 @@ export default function Home() {
     }
   };
 
-  // --- 6. SUGGESTION SUBMIT FUNCTION (NEW) ---
+  // --- 6. SUGGESTION SUBMIT FUNCTION ---
   const handleSuggestionSubmit = async (e) => {
     e.preventDefault();
     if (!suggestion.trim()) return;
@@ -147,7 +147,7 @@ export default function Home() {
       
       if (result.success || result.status === 'success') {
         showModal("Sent!", "Your suggestion has been sent to the admin.", "success");
-        setSuggestion(""); // Clear form
+        setSuggestion(""); 
       } else {
         showModal("Error", "Could not send suggestion. Please try again.", "danger");
       }
@@ -183,7 +183,6 @@ export default function Home() {
   if (loading) return <HomeSkeleton />;
 
   return (
-    // Added overscroll-none to prevent browser pull-to-refresh visuals
     <div className="h-screen overflow-y-auto bg-[#F2F6FA] dark:bg-[#0a0a0a] text-gray-800 dark:text-gray-100 font-sans overflow-x-hidden overscroll-none">
       
       {/* --- APP HEADER --- */}
@@ -278,6 +277,232 @@ export default function Home() {
         </div>
       </div>
 
+      {/* ======================================================== */}
+      {/* --- CREATIVE BENTO DASHBOARD (SKETCH INSPIRED) --- */}
+      {/* ======================================================== */}
+      <div className="px-4 mb-10 mt-2">
+         
+         {/* ------------------------------------------------ */}
+         {/* 1. STUDENT DASHBOARD */}
+         {/* ------------------------------------------------ */}
+         {(user?.role === 'student' || !user?.role) && (
+            <div className="space-y-6">
+               
+               {/* --- THE CREATIVE 'CORE ESSENTIALS' BENTO --- */}
+               <div>
+                  <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3 ml-1">Core Essentials</h3>
+                  <div className="grid grid-cols-2 gap-3 h-[18rem]">
+                     
+                     {/* 1. Top Wide Card (Work) */}
+                     <Link href="/work?source=twa" className="col-span-2 bg-gradient-to-r from-[#A3E635] to-[#84CC16] rounded-[2rem] p-5 flex items-center justify-between shadow-md shadow-lime-500/20 active:scale-95 transition-transform">
+                        <div>
+                           <h3 className="text-3xl font-black text-white leading-none">Daily Work</h3>
+                           <p className="text-lime-100 text-xs font-medium mt-1">Homework & Assignments</p>
+                        </div>
+                        <div className="w-14 h-14 bg-white/20 rounded-full flex items-center justify-center text-white backdrop-blur-md">
+                           <BookOpen size={28} />
+                        </div>
+                     </Link>
+
+                     {/* 2. Left Tall Card (Fees) */}
+                     <Link href="/fees" className="col-span-1 bg-gradient-to-b from-[#FDBA74] to-[#F97316] rounded-[2rem] p-5 flex flex-col justify-between shadow-md shadow-orange-500/20 active:scale-95 transition-transform relative overflow-hidden">
+                        <div className="relative z-10 flex flex-col items-center pt-2">
+                           <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center text-white backdrop-blur-md shrink-0 mb-3">
+                              <CreditCard size={20} />
+                           </div>
+                           <h3 className="text-[26px] font-black text-white tracking-wide">
+                              Fees
+                           </h3>
+                        </div>
+                        <div className="relative z-10 mt-auto text-center bg-white/20 backdrop-blur-sm rounded-xl py-2 px-1 border border-white/20">
+                           <p className="text-orange-100 text-[9px] uppercase tracking-widest font-bold mb-0.5">Due</p>
+                           <h4 className="text-lg font-black text-white leading-none">₹{mockFeeDue}</h4>
+                        </div>
+                        <CreditCard className="absolute -bottom-6 -right-6 w-32 h-32 text-white opacity-20 transform -rotate-12 pointer-events-none" />
+                     </Link>
+
+                     {/* Right Side Stack */}
+                     <div className="col-span-1 flex flex-col gap-3">
+                        
+                        {/* 3. Perfect Circle Card (Attendance) */}
+                        <Link href="/profile" className="flex-1 rounded-[2rem] bg-gradient-to-br from-[#2DD4BF] to-[#0F766E] flex flex-col items-center justify-center shadow-md shadow-teal-500/20 active:scale-95 transition-transform p-4 text-center relative overflow-hidden">
+                           <CheckCircle2 size={24} className="text-teal-200 mb-2 relative z-10" />
+                           <p className="text-teal-100 text-[11px] uppercase tracking-widest font-bold mb-1 relative z-10">Attendance</p>
+                           <h3 className="text-4xl font-black text-white leading-none relative z-10">{mockAttendance}</h3>
+                           <div className="absolute top-0 right-0 w-16 h-16 bg-white/10 rounded-full blur-xl pointer-events-none"></div>
+                        </Link>
+
+                        {/* 4. Bottom Rectangle Card (Results) */}
+                        <Link href="/profile" className="h-[4.5rem] bg-gradient-to-r from-[#22C55E] to-[#15803D] rounded-[1.5rem] p-4 flex items-center justify-center gap-2 shadow-md shadow-green-500/20 active:scale-95 transition-transform">
+                           <FileSpreadsheet size={20} className="text-green-200" />
+                           <h3 className="text-xl font-black text-white tracking-wide">Results</h3>
+                        </Link>
+                     </div>
+
+                  </div>
+               </div>
+               
+               {/* --- CAMPUS TOOLS GRID (Untouched Icons as requested) --- */}
+               <div>
+                  <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3 ml-1">Campus Tools</h3>
+                  <div className="bg-white dark:bg-[#151515] border border-gray-100 dark:border-gray-800 rounded-[2rem] p-5 shadow-sm">
+                     <div className="grid grid-cols-4 gap-y-6 gap-x-2">
+                        <ToolAppIcon title="Notices" icon={Bell} link="/events?source=twa" iconColor="text-rose-500" />
+                        <ToolAppIcon title="Timetable" icon={Clock} link="/profile" iconColor="text-indigo-500" />
+                        <ToolAppIcon title="Video Lect." icon={PlayCircle} link="#" iconColor="text-sky-500" />
+                        <ToolAppIcon title="Live Class" icon={MonitorPlay} link="#" iconColor="text-red-500" />
+                        
+                        <ToolAppIcon title="Assignments" icon={PenTool} link="#" iconColor="text-teal-500" />
+                        <ToolAppIcon title="Syllabus" icon={Book} link="#" iconColor="text-fuchsia-500" />
+                        <ToolAppIcon title="Notes" icon={NotebookPen} link="#" iconColor="text-amber-500" />
+                        <ToolAppIcon title="Events" icon={CalendarRange} link="/events?source=twa" iconColor="text-pink-500" />
+                        
+                        <ToolAppIcon title="Exam Sched." icon={CalendarDays} link="#" iconColor="text-violet-500" />
+                        <ToolAppIcon title="Library" icon={Library} link="#" iconColor="text-blue-600" />
+                        <ToolAppIcon title="Transport" icon={Bus} link="#" iconColor="text-slate-600" />
+                        <ToolAppIcon title="Apply Leave" icon={CalendarMinus} link="#" iconColor="text-purple-500" />
+                        
+                        <ToolAppIcon title="My Rank" icon={Trophy} link="#" iconColor="text-yellow-500" />
+                        <ToolAppIcon title="Downloads" icon={Download} link="#" iconColor="text-gray-500" />
+                        <ToolAppIcon title="Birthdays" icon={Gift} link="#" iconColor="text-rose-400" />
+                        <ToolAppIcon title="Directory" icon={PhoneCall} link="#" iconColor="text-emerald-600" />
+                     </div>
+                  </div>
+               </div>
+            </div>
+         )}
+
+         {/* ------------------------------------------------ */}
+         {/* 2. TEACHER DASHBOARD */}
+         {/* ------------------------------------------------ */}
+         {user?.role === 'teacher' && (
+            <div className="space-y-6">
+               {/* Creative Bento for Teachers */}
+               <div>
+                  <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3 ml-1">Core Essentials</h3>
+                  <div className="grid grid-cols-2 gap-3 h-[18rem]">
+                     <Link href="/teacher?source=twa" className="col-span-2 bg-gradient-to-r from-[#818CF8] to-[#4F46E5] rounded-[2rem] p-5 flex items-center justify-between shadow-md active:scale-95 transition-transform">
+                        <div>
+                           <h3 className="text-3xl font-black text-white leading-none">Teacher App</h3>
+                           <p className="text-indigo-100 text-xs font-medium mt-1">Manage Class DB</p>
+                        </div>
+                        <div className="w-14 h-14 bg-white/20 rounded-full flex items-center justify-center text-white backdrop-blur-md">
+                           <Edit3 size={28} />
+                        </div>
+                     </Link>
+
+                     <Link href="/work?source=twa" className="col-span-1 bg-gradient-to-b from-[#FDA4AF] to-[#E11D48] rounded-[2rem] p-5 flex flex-col justify-between shadow-md active:scale-95 transition-transform relative overflow-hidden">
+                        <div className="relative z-10 flex flex-col items-center h-full pt-2">
+                           <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center text-white backdrop-blur-md shrink-0"><BookOpen size={20} /></div>
+                           <div className="flex-1 flex items-center justify-center">
+                              <h3 className="text-3xl font-black text-white tracking-wider" style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)' }}>Upload Work</h3>
+                           </div>
+                        </div>
+                        <BookOpen className="absolute -bottom-6 -right-6 w-32 h-32 text-white opacity-20 transform -rotate-12 pointer-events-none" />
+                     </Link>
+
+                     <div className="col-span-1 flex flex-col gap-3">
+                        <Link href="#" className="flex-1 rounded-[2rem] bg-gradient-to-br from-[#34D399] to-[#059669] flex flex-col items-center justify-center shadow-md active:scale-95 transition-transform p-4 text-center">
+                           <p className="text-emerald-100 text-[11px] uppercase tracking-widest font-bold mb-1">Register</p>
+                           <h3 className="text-2xl font-black text-white leading-none">Attendance</h3>
+                        </Link>
+                        <Link href="#" className="h-[4.5rem] bg-gradient-to-r from-[#FBBF24] to-[#D97706] rounded-[1.5rem] p-4 flex items-center justify-center shadow-md active:scale-95 transition-transform">
+                           <h3 className="text-xl font-black text-white tracking-wide">Upload Marks</h3>
+                        </Link>
+                     </div>
+                  </div>
+               </div>
+
+               {/* Teacher Tools Grid */}
+               <div>
+                  <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3 ml-1">Staff Tools</h3>
+                  <div className="bg-white dark:bg-[#151515] border border-gray-100 dark:border-gray-800 rounded-[2rem] p-5 shadow-sm">
+                     <div className="grid grid-cols-4 gap-y-6 gap-x-2">
+                        <ToolAppIcon title="Live Class" icon={MonitorPlay} link="#" iconColor="text-red-500" />
+                        <ToolAppIcon title="Video Lect." icon={PlayCircle} link="#" iconColor="text-sky-500" />
+                        <ToolAppIcon title="Timetable" icon={Clock} link="#" iconColor="text-indigo-500" />
+                        <ToolAppIcon title="Assignments" icon={PenTool} link="#" iconColor="text-teal-500" />
+                        
+                        <ToolAppIcon title="Notices" icon={Bell} link="/events?source=twa" iconColor="text-rose-500" />
+                        <ToolAppIcon title="Events" icon={CalendarRange} link="/events?source=twa" iconColor="text-pink-500" />
+                        <ToolAppIcon title="Gallery" icon={ImageIcon} link="/gallery?source=twa" iconColor="text-purple-500" />
+                        <ToolAppIcon title="Apply Leave" icon={CalendarMinus} link="#" iconColor="text-orange-500" />
+                        
+                        <ToolAppIcon title="Directory" icon={PhoneCall} link="#" iconColor="text-blue-500" />
+                        <ToolAppIcon title="Payslips" icon={Wallet} link="#" iconColor="text-emerald-600" />
+                        <ToolAppIcon title="Suggestion" icon={MessageSquare} link="#" iconColor="text-cyan-500" />
+                        <ToolAppIcon title="My Profile" icon={User} link="/profile" iconColor="text-slate-600" />
+                     </div>
+                  </div>
+               </div>
+            </div>
+         )}
+
+         {/* ------------------------------------------------ */}
+         {/* 3. ADMIN DASHBOARD */}
+         {/* ------------------------------------------------ */}
+         {user?.role === 'admin' && (
+            <div className="space-y-6">
+               {/* Creative Bento for Admin */}
+               <div>
+                  <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3 ml-1">Management</h3>
+                  <div className="grid grid-cols-2 gap-3 h-[18rem]">
+                     <Link href="/admin/posts" className="col-span-2 bg-gradient-to-r from-[#FCA5A5] to-[#E11D48] rounded-[2rem] p-5 flex items-center justify-between shadow-md active:scale-95 transition-transform">
+                        <div>
+                           <h3 className="text-3xl font-black text-white leading-none">Broadcast</h3>
+                           <p className="text-rose-100 text-xs font-medium mt-1">Post Notices & Updates</p>
+                        </div>
+                        <div className="w-14 h-14 bg-white/20 rounded-full flex items-center justify-center text-white backdrop-blur-md">
+                           <Megaphone size={28} />
+                        </div>
+                     </Link>
+
+                     <Link href="/admin/students" className="col-span-1 bg-gradient-to-b from-[#7DD3FC] to-[#0284C7] rounded-[2rem] p-5 flex flex-col justify-between shadow-md active:scale-95 transition-transform relative overflow-hidden">
+                        <div className="relative z-10 flex flex-col items-center h-full pt-2">
+                           <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center text-white backdrop-blur-md shrink-0"><GraduationCap size={20} /></div>
+                           <div className="flex-1 flex items-center justify-center">
+                              <h3 className="text-3xl font-black text-white tracking-wider" style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)' }}>Students</h3>
+                           </div>
+                        </div>
+                        <GraduationCap className="absolute -bottom-6 -right-6 w-32 h-32 text-white opacity-20 transform -rotate-12 pointer-events-none" />
+                     </Link>
+
+                     <div className="col-span-1 flex flex-col gap-3">
+                        <Link href="/admin/teachers" className="flex-1 rounded-[2rem] bg-gradient-to-br from-[#D8B4FE] to-[#9333EA] flex flex-col items-center justify-center shadow-md active:scale-95 transition-transform p-4 text-center">
+                           <p className="text-purple-100 text-[11px] uppercase tracking-widest font-bold mb-1">Manage Staff</p>
+                           <h3 className="text-2xl font-black text-white leading-none">Teachers</h3>
+                        </Link>
+                        <Link href="#" className="h-[4.5rem] bg-gradient-to-r from-[#6EE7B7] to-[#059669] rounded-[1.5rem] p-4 flex items-center justify-center shadow-md active:scale-95 transition-transform">
+                           <h3 className="text-xl font-black text-white tracking-wide">Fees Setup</h3>
+                        </Link>
+                     </div>
+                  </div>
+               </div>
+
+               {/* Admin Tools Grid */}
+               <div>
+                  <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3 ml-1">Admin Tools</h3>
+                  <div className="bg-white dark:bg-[#151515] border border-gray-100 dark:border-gray-800 rounded-[2rem] p-5 shadow-sm">
+                     <div className="grid grid-cols-4 gap-y-6 gap-x-2">
+                        <ToolAppIcon title="Reports" icon={Activity} link="#" iconColor="text-amber-500" />
+                        <ToolAppIcon title="Leave Appr." icon={CalendarMinus} link="#" iconColor="text-pink-500" />
+                        <ToolAppIcon title="Live Monitor" icon={MonitorPlay} link="#" iconColor="text-teal-500" />
+                        <ToolAppIcon title="Transport" icon={Bus} link="#" iconColor="text-slate-600" />
+                        
+                        <ToolAppIcon title="Events" icon={CalendarRange} link="/events?source=twa" iconColor="text-orange-500" />
+                        <ToolAppIcon title="Gallery" icon={ImageIcon} link="/gallery?source=twa" iconColor="text-sky-500" />
+                        <ToolAppIcon title="SMS Blast" icon={MessageSquare} link="#" iconColor="text-indigo-500" />
+                        <ToolAppIcon title="Expenses" icon={CreditCard} link="#" iconColor="text-rose-500" />
+                        
+                        <ToolAppIcon title="Complaints" icon={HelpCircle} link="#" iconColor="text-fuchsia-500" />
+                        <ToolAppIcon title="Settings" icon={Settings} link="/settings" iconColor="text-gray-600" />
+                     </div>
+                  </div>
+               </div>
+            </div>
+         )}
+      </div>
+
       {/* --- WHAT'S TODAY --- */}
       {data?.whatsToday && (
         <div className="px-4 mb-8">
@@ -307,69 +532,6 @@ export default function Home() {
            </div>
         </div>
       )}
-
-      {/* --- DASHBOARD --- */}
-      <div className="px-4 mb-8">
-         <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3 ml-1">Quick Access</h3>
-         
-         <div className="flex flex-col gap-3">
-            <motion.div whileTap={{ scale: 0.98 }}>
-              <Link 
-                href={
-                    user?.role === 'admin' ? "/admin/posts" : 
-                    user?.role === 'teacher' ? "/teacher?source=twa" : 
-                    "/work?source=twa"
-                }
-                className="block w-full bg-[#3B82F6] rounded-[2rem] p-6 text-white shadow-xl shadow-blue-500/25 relative overflow-hidden group"
-              >
-                 <div className="relative z-10 flex items-center justify-between">
-                    <div>
-                       <div className="w-10 h-10 rounded-xl bg-white/20 backdrop-blur-md flex items-center justify-center mb-3 border border-white/10">
-                         {user?.role === 'admin' ? <Shield size={20} /> : 
-                          user?.role === 'teacher' ? <Edit3 size={20} /> : 
-                          <BookOpen size={20} />}
-                       </div>
-                       <h4 className="text-xl font-bold">
-                           {user?.role === 'admin' ? 'Post Update' : 
-                            user?.role === 'teacher' ? 'Teacher App' : 
-                            'Daily Work'}
-                       </h4>
-                       <p className="text-blue-100 text-xs mt-1 opacity-90">
-                           {user?.role === 'admin' ? 'Post an update' : 
-                            user?.role === 'teacher' ? 'Update HW & Notices' : 
-                            'Check homework & classwork'}
-                       </p>
-                    </div>
-                    <div className="opacity-20 absolute -right-4 bottom-[-10px]">
-                        <BookOpen size={100} />
-                    </div>
-                 </div>
-              </Link>
-            </motion.div>
-
-            <div className="grid grid-cols-2 gap-3">
-                <Link href="/gallery?source=twa" className="bg-white dark:bg-[#151515] p-4 rounded-[1.5rem] shadow-sm border border-gray-100 dark:border-gray-800 flex flex-col justify-between h-32 relative overflow-hidden">
-                   <div className="w-9 h-9 rounded-full bg-purple-50 dark:bg-purple-900/20 text-purple-600 flex items-center justify-center">
-                      <ImageIcon size={18} />
-                   </div>
-                   <div>
-                      <h4 className="font-bold text-base text-gray-900 dark:text-white leading-none mb-1">Gallery</h4>
-                      <p className="text-[10px] text-gray-500 dark:text-gray-400">Campus life</p>
-                   </div>
-                </Link>
-
-                <Link href="/events?source=twa" className="bg-white dark:bg-[#151515] p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 flex flex-col justify-between h-32 relative overflow-hidden">
-                   <div className="w-9 h-9 rounded-full bg-orange-50 dark:bg-orange-900/20 text-orange-600 flex items-center justify-center">
-                      <Calendar size={18} />
-                   </div>
-                   <div>
-                      <h4 className="font-bold text-base text-gray-900 dark:text-white leading-none mb-1">Updates</h4>
-                      <p className="text-[10px] text-gray-500 dark:text-gray-400">Notices</p>
-                   </div>
-                </Link>
-            </div>
-         </div>
-      </div>
 
       {/* --- CLASS TOPPERS --- */}
       {data?.show_toppers && user?.role !== 'admin' && data?.toppers?.length > 0 && (
@@ -527,7 +689,7 @@ export default function Home() {
          </div>
       </div>
       
-      {/* --- FEEDBACK FORM (FIXED) --- */}
+      {/* --- FEEDBACK FORM --- */}
       {user?.role === 'student' && (
         <div className="px-4 mb-12">
            <div className="bg-gradient-to-br from-emerald-500 to-teal-700 rounded-[1.5rem] p-6 text-white shadow-lg shadow-emerald-500/20 relative overflow-hidden">
@@ -641,6 +803,20 @@ export default function Home() {
   );
 }
 
+// --- ENTERPRISE UI COMPONENT (For Campus Tools Grid) ---
+function ToolAppIcon({ title, icon: Icon, link, iconColor }) {
+    return (
+        <Link href={link} className="flex flex-col items-center gap-2 group active:scale-90 transition-transform">
+            <div className="w-[3.5rem] h-[3.5rem] bg-gray-50 dark:bg-[#1a1a1a] rounded-[1.1rem] flex items-center justify-center shadow-sm border border-gray-100/80 dark:border-gray-800 group-hover:shadow-md group-hover:bg-white dark:group-hover:bg-[#222] transition-all">
+                <Icon size={24} strokeWidth={1.5} className={`${iconColor} group-hover:scale-110 transition-transform duration-200`} />
+            </div>
+            <span className="text-[10px] font-semibold text-gray-600 dark:text-gray-400 text-center tracking-tight leading-tight w-full px-0.5 line-clamp-2">
+                {title}
+            </span>
+        </Link>
+    );
+}
+
 // --- SKELETON ---
 function HomeSkeleton() {
   return (
@@ -659,13 +835,7 @@ function HomeSkeleton() {
             </div>
         </div>
         <div className="h-40 rounded-[2.5rem] bg-gray-200 dark:bg-gray-800 skeleton w-full" />
-        <div className="h-48 rounded-[1.5rem] bg-gray-200 dark:bg-gray-800 skeleton w-full" />
-        <div className="h-48 rounded-[2rem] bg-gray-200 dark:bg-gray-800 skeleton w-full" />
-        <div className="grid grid-cols-2 gap-3">
-            <div className="h-32 rounded-[2rem] bg-gray-200 dark:bg-gray-800 skeleton col-span-2" />
-            <div className="h-32 rounded-[1.5rem] bg-gray-200 dark:bg-gray-800 skeleton" />
-            <div className="h-32 rounded-[1.5rem] bg-gray-200 dark:bg-gray-800 skeleton" />
-        </div>
+        <div className="h-48 rounded-[1.5rem] bg-gray-200 dark:bg-gray-800 skeleton w-full mt-6" />
     </div>
   )
 }

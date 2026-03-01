@@ -40,12 +40,16 @@ export default function GalleryPage() {
   const filteredImages = data.images.filter(item => activeCategory === 'all' || item.category === activeCategory);
   const filteredVideos = data.videos.filter(item => activeCategory === 'all' || item.category === activeCategory);
 
-  // Helper: Extract YouTube ID
-  const getYouTubeId = (url) => {
-    if (!url) return null;
-    const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
+  // Helper: Extract YouTube ID & Check if Short
+  const getYouTubeInfo = (url) => {
+    if (!url) return { id: null, isShort: false };
+    // Updated regex to catch /shorts/ as well
+    const regExp = /(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|shorts\/|watch\?v=|watch\?.+&v=))([^&?#]+)/;
     const match = url.match(regExp);
-    return (match && match[2].length === 11) ? match[2] : null;
+    const id = (match && match[1].length === 11) ? match[1] : null;
+    const isShort = url.includes('shorts/');
+    
+    return { id, isShort };
   };
 
   if (loading) return <GallerySkeleton />;
@@ -66,25 +70,22 @@ export default function GalleryPage() {
             </button>
             
             <div className="w-full max-w-4xl max-h-[80vh] flex items-center justify-center" onClick={(e) => e.stopPropagation()}>
-                {lightboxItem.type === 'img' ? (
-                    <motion.img 
-                        initial={{ scale: 0.9 }} animate={{ scale: 1 }}
-                        src={lightboxItem.src} 
-                        className="max-w-full max-h-[80vh] rounded-lg shadow-2xl object-contain"
-                        // We use standard img here to load the FULL QUALITY version on demand
-                    />
-                ) : (
-                    <div className="w-full aspect-video rounded-xl overflow-hidden shadow-2xl bg-black">
-                        <iframe 
-                            width="100%" height="100%" 
-                            src={`https://www.youtube.com/embed/${getYouTubeId(lightboxItem.src)}?autoplay=1`} 
-                            title="Video player" 
-                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
-                            allowFullScreen
-                            className="w-full h-full"
-                        ></iframe>
-                    </div>
-                )}
+           
+                {lightboxItem.type !== 'img' && (() => {
+                    const { id, isShort } = getYouTubeInfo(lightboxItem.src);
+                    return (
+                        <div className={`w-full overflow-hidden shadow-2xl bg-black rounded-xl ${isShort ? 'max-w-sm aspect-[9/16]' : 'aspect-video'}`}>
+                            <iframe 
+                                width="100%" height="100%" 
+                                src={`https://www.youtube.com/embed/${id}?autoplay=1`} 
+                                title="Video player" 
+                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+                                allowFullScreen
+                                className="w-full h-full"
+                            ></iframe>
+                        </div>
+                    );
+                })()}
             </div>
 
             {lightboxItem.caption && (
@@ -199,14 +200,16 @@ export default function GalleryPage() {
                     initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}
                     className="grid grid-cols-1 md:grid-cols-2 gap-4"
                 >
+          
                     {filteredVideos.map((vid, i) => {
-                        const ytId = getYouTubeId(vid.video_url);
+                        const { id: ytId, isShort } = getYouTubeInfo(vid.video_url);
                         const thumb = ytId ? `https://img.youtube.com/vi/${ytId}/hqdefault.jpg` : null;
 
                         return (
                             <div 
                                 key={i} 
-                                className="relative rounded-2xl overflow-hidden shadow-md bg-black group cursor-pointer aspect-video border border-gray-200 dark:border-gray-800"
+                                // Dynamically change aspect ratio based on isShort
+                                className={`relative rounded-2xl overflow-hidden shadow-md bg-black group cursor-pointer border border-gray-200 dark:border-gray-800 ${isShort ? 'aspect-[9/16] w-full max-w-[300px] mx-auto' : 'aspect-video'}`}
                                 onClick={() => setLightboxItem({ type: 'vid', src: vid.video_url, caption: vid.caption })}
                             >
                                 {thumb ? (

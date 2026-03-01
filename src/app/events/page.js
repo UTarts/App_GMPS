@@ -2,111 +2,154 @@
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
-  ChevronLeft, Calendar, Bell, X, ZoomIn, 
-  CheckCircle2, AlertCircle 
-} from 'lucide-react';
-import Link from 'next/link';
-
-export default function UpdatesPage() {
-  const [data, setData] = useState({ updates: [], announcements: [], events: [] });
-  const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState('feed'); 
-  const [lightboxItem, setLightboxItem] = useState(null); 
-
-  useEffect(() => {
-    async function fetchData() {
-      try {
-        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/updates.php`);
-        const json = await res.json();
-        if(json.status === 'success') setData(json.data);
-      } catch (e) { console.error(e); } 
-      finally { setLoading(false); }
-    }
-    fetchData();
-  }, []);
-
-  const storyUpdates = data.updates.filter(u => u.image_url);
-
-  // Time Formatter
-  const formatTime = (dateString) => {
-    if (!dateString) return 'Just now';
-    const date = new Date(dateString);
-    const now = new Date();
-    const diff = Math.floor((now - date) / 1000); // seconds
-
-    if (diff < 60) return 'Just now';
-    if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
-    if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
-    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-  };
-
-  if (loading) return <UpdatesSkeleton />;
-
-  return (
-    <div className="min-h-screen bg-[#F2F6FA] dark:bg-[#0a0a0a] text-gray-800 dark:text-gray-100 font-sans pb-24 relative">
-      
-      {/* LIGHTBOX */}
-      <AnimatePresence>
-        {lightboxItem && (
-          <motion.div 
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[100] bg-black/95 flex flex-col items-center justify-center p-4 backdrop-blur-sm"
-            onClick={() => setLightboxItem(null)}
-          >
-            <button className="absolute top-6 right-6 text-white bg-white/10 p-2 rounded-full"><X size={24} /></button>
-            <motion.img 
-                initial={{ scale: 0.8 }} animate={{ scale: 1 }} 
-                src={lightboxItem.src} 
-                className="max-w-full max-h-[70vh] rounded-lg shadow-2xl object-contain mb-4" 
-                onClick={(e) => e.stopPropagation()} 
-            />
-            {lightboxItem.text && (
-                <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className="bg-white/10 backdrop-blur-md p-4 rounded-xl text-white text-sm text-center max-w-md w-full border border-white/10" onClick={(e) => e.stopPropagation()}>
-                    {lightboxItem.text}
-                </motion.div>
-            )}
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* HEADER */}
-      <div className="sticky top-0 z-40 bg-white/80 dark:bg-black/80 backdrop-blur-xl border-b border-gray-200 dark:border-gray-800 px-4 py-4 flex items-center justify-between shadow-sm">
-        <div className="flex items-center gap-3">
-            <Link href="/?source=twa" className="p-2 -ml-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
-                <ChevronLeft size={24} className="text-gray-700 dark:text-gray-200" />
-            </Link>
-            <h1 className="text-xl font-bold text-gray-900 dark:text-white tracking-tight">School Updates</h1>
+    ChevronLeft, Calendar, Bell, X, ZoomIn, 
+    CheckCircle2, AlertCircle, PlayCircle // Added PlayCircle for IG icon
+  } from 'lucide-react';
+  import Link from 'next/link';
+  
+  export default function UpdatesPage() {
+    const [data, setData] = useState({ updates: [], announcements: [], events: [] });
+    const [loading, setLoading] = useState(true);
+    const [activeTab, setActiveTab] = useState('feed'); 
+    const [lightboxItem, setLightboxItem] = useState(null); 
+  
+    useEffect(() => {
+      async function fetchData() {
+        try {
+          const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/updates.php`);
+          const json = await res.json();
+          if(json.status === 'success') setData(json.data);
+        } catch (e) { console.error(e); } 
+        finally { setLoading(false); }
+      }
+      fetchData();
+    }, []);
+  
+    // --- NEW: Instagram Link Detector ---
+    const getIgId = (text) => {
+        if (!text) return null;
+        // Added "reels" to the regex string
+        const regExp = /(?:instagram\.com\/(?:p|reel|reels)\/)([\w-]+)/;
+        const match = text.match(regExp);
+        return match ? match[1] : null;
+    };
+  
+    // Filter Updates: Must have an image OR an Instagram link in the text/image field
+    const storyUpdates = data.updates.filter(u => u.image_url || getIgId(u.update_text) || getIgId(u.image_url));
+  
+    // Time Formatter
+    const formatTime = (dateString) => {
+      if (!dateString) return 'Just now';
+      const date = new Date(dateString);
+      const now = new Date();
+      const diff = Math.floor((now - date) / 1000); // seconds
+  
+      if (diff < 60) return 'Just now';
+      if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+      if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    };
+  
+    if (loading) return <UpdatesSkeleton />;
+  
+    return (
+      <div className="min-h-screen bg-[#F2F6FA] dark:bg-[#0a0a0a] text-gray-800 dark:text-gray-100 font-sans pb-24 relative">
+        
+        {/* --- UPDATED LIGHTBOX --- */}
+        <AnimatePresence>
+          {lightboxItem && (
+            <motion.div 
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[100] bg-black/95 flex flex-col items-center justify-center p-4 backdrop-blur-sm"
+              onClick={() => setLightboxItem(null)}
+            >
+              <button className="absolute top-6 right-6 text-white bg-white/10 p-2 rounded-full z-50">
+                  <X size={24} />
+              </button>
+              
+              {lightboxItem.type === 'ig' ? (
+                  // Instagram Reel Embed
+                  <div className="w-full max-w-sm aspect-[9/16] bg-white dark:bg-black rounded-xl overflow-hidden shadow-2xl mb-4" onClick={(e) => e.stopPropagation()}>
+                      <iframe 
+                          src={`https://www.instagram.com/p/${lightboxItem.id}/embed`}
+                          className="w-full h-full"
+                          frameBorder="0" 
+                          scrolling="no" 
+                          allowtransparency="true"
+                      ></iframe>
+                  </div>
+              ) : (
+                  // Standard Image
+                  <motion.img 
+                      initial={{ scale: 0.8 }} animate={{ scale: 1 }} 
+                      src={lightboxItem.src} 
+                      className="max-w-full max-h-[70vh] rounded-lg shadow-2xl object-contain mb-4" 
+                      onClick={(e) => e.stopPropagation()} 
+                  />
+              )}
+  
+              {lightboxItem.text && lightboxItem.type !== 'ig' && (
+                  <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className="bg-white/10 backdrop-blur-md p-4 rounded-xl text-white text-sm text-center max-w-md w-full border border-white/10" onClick={(e) => e.stopPropagation()}>
+                      {lightboxItem.text}
+                  </motion.div>
+              )}
+            </motion.div>
+          )}
+        </AnimatePresence>
+  
+        {/* HEADER */}
+        <div className="sticky top-0 z-40 bg-white/80 dark:bg-black/80 backdrop-blur-xl border-b border-gray-200 dark:border-gray-800 px-4 py-4 flex items-center justify-between shadow-sm">
+          <div className="flex items-center gap-3">
+              <Link href="/?source=twa" className="p-2 -ml-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
+                  <ChevronLeft size={24} className="text-gray-700 dark:text-gray-200" />
+              </Link>
+              <h1 className="text-xl font-bold text-gray-900 dark:text-white tracking-tight">School Updates</h1>
+          </div>
         </div>
-      </div>
-
-      <div className="px-0 mt-4 space-y-6">
-
-        {/* STORIES */}
-        {storyUpdates.length > 0 && (
-            <div className="pl-4">
-                <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">Highlights</h3>
-                <div className="flex gap-4 overflow-x-auto pb-4 no-scrollbar pr-4">
-                    {storyUpdates.map((upd, i) => (
-                        <div key={i} className="flex-shrink-0 flex flex-col items-center gap-2 cursor-pointer group" 
-                             onClick={() => setLightboxItem({ src: `${process.env.NEXT_PUBLIC_IMAGE_BASE_URL}${upd.image_url}`, text: upd.update_text })}>
-                            <div className="w-[4.5rem] h-[4.5rem] rounded-full p-[3px] bg-gradient-to-tr from-green-400 via-emerald-500 to-teal-600 group-active:scale-95 transition-transform">
-                                <div className="w-full h-full rounded-full border-[3px] border-white dark:border-[#0a0a0a] overflow-hidden">
-                                    <img 
-                                        src={`${process.env.NEXT_PUBLIC_IMAGE_BASE_URL}${upd.image_url}`} 
-                                        className="w-full h-full object-cover" 
-                                        loading="lazy"
-                                        alt="Story" 
-                                    />
-                                </div>
-                            </div>
-                            <span className="text-[10px] font-bold text-center max-w-[4.5rem] truncate text-gray-600 dark:text-gray-400">
-                                {formatTime(upd.created_at)}
-                            </span>
-                        </div>
-                    ))}
-                </div>
-            </div>
-        )}
+  
+        <div className="px-0 mt-4 space-y-6">
+  
+          {/* --- UPDATED HIGHLIGHTS / STORIES --- */}
+          {storyUpdates.length > 0 && (
+              <div className="pl-4">
+                  <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">Highlights</h3>
+                  <div className="flex gap-4 overflow-x-auto pb-4 no-scrollbar pr-4">
+                      {storyUpdates.map((upd, i) => {
+                          const igId = getIgId(upd.update_text) || getIgId(upd.image_url);
+                          const isIg = !!igId;
+  
+                          return (
+                              <div key={i} className="flex-shrink-0 flex flex-col items-center gap-2 cursor-pointer group" 
+                                  onClick={() => {
+                                      if (isIg) {
+                                          setLightboxItem({ type: 'ig', id: igId, text: upd.update_text });
+                                      } else {
+                                          setLightboxItem({ type: 'img', src: `${process.env.NEXT_PUBLIC_IMAGE_BASE_URL}${upd.image_url}`, text: upd.update_text });
+                                      }
+                                  }}>
+                                  <div className="w-[4.5rem] h-[4.5rem] rounded-full p-[3px] bg-gradient-to-tr from-purple-500 via-pink-500 to-orange-500 group-active:scale-95 transition-transform">
+                                      <div className="w-full h-full rounded-full border-[3px] border-white dark:border-[#0a0a0a] overflow-hidden bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
+                                          {isIg ? (
+                                              <PlayCircle className="text-gray-500 dark:text-gray-400" size={28} />
+                                          ) : (
+                                              <img 
+                                                  src={`${process.env.NEXT_PUBLIC_IMAGE_BASE_URL}${upd.image_url}`} 
+                                                  className="w-full h-full object-cover" 
+                                                  loading="lazy"
+                                                  alt="Story" 
+                                              />
+                                          )}
+                                      </div>
+                                  </div>
+                                  <span className="text-[10px] font-bold text-center max-w-[4.5rem] truncate text-gray-600 dark:text-gray-400">
+                                      {formatTime(upd.created_at)}
+                                  </span>
+                              </div>
+                          );
+                      })}
+                  </div>
+              </div>
+          )}
 
         {/* TABS */}
         <div className="px-4 sticky top-[72px] z-30">
@@ -124,7 +167,7 @@ export default function UpdatesPage() {
                     <motion.div key="feed" initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} className="space-y-4">
                         
                         {/* Daily Text Updates */}
-                        {data.updates.filter(u => !u.image_url).map((upd, i) => (
+                        {data.updates.filter(u => !u.image_url && !getIgId(u.update_text)).map((upd, i) => (
                             <div key={`upd-${i}`} className="bg-white dark:bg-[#151515] p-4 rounded-2xl border-l-4 border-l-green-500 shadow-sm">
                                 <div className="flex items-center gap-2 mb-2">
                                     <span className="bg-green-100 text-green-700 text-[10px] font-bold px-2 py-0.5 rounded">UPDATE</span>
