@@ -21,6 +21,13 @@ function FcmHandler() {
   return null; 
 }
 export default function RootLayout({ children }) {
+  useEffect(() => {
+    if ('clearAppBadge' in navigator) {
+      navigator.clearAppBadge().catch((error) => {
+        console.error('Failed to clear app badge:', error);
+      });
+    }
+  }, []);
   return (
     <html lang="en" suppressHydrationWarning>
       <head>

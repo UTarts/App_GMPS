@@ -44,7 +44,6 @@ function saveMessageToDB(title, body, url) {
   });
 }
 
-// --- 2. HANDLE BACKGROUND MESSAGE ---
 messaging.onBackgroundMessage((payload) => {
   console.log('[firebase-messaging-sw.js] Background Message:', payload);
   
@@ -52,10 +51,18 @@ messaging.onBackgroundMessage((payload) => {
   const body = payload.notification.body;
   const url = payload.data?.url || '/';
 
-  // A. Save to Database (So Sidebar can see it later)
+  // 1. Save to Database
   saveMessageToDB(title, body, url);
 
-  // B. Show Notification
+  // 2. Set the App Badge (The Red Dot)
+  if ('setAppBadge' in navigator) {
+    // We set it to 1 for now; in the next update, we can make it a dynamic count
+    navigator.setAppBadge(1).catch((error) => {
+      console.error('Failed to set app badge:', error);
+    });
+  }
+
+  // 3. Show Notification
   const notificationOptions = {
     body: body,
     icon: '/icon-192.png',
