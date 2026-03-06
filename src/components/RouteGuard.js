@@ -8,7 +8,6 @@ export default function RouteGuard({ children }) {
   const router = useRouter();
   const pathname = usePathname();
 
-  // --- THIS IS THE FIX ---
   const isLoginPage = pathname?.includes('/login');
 
   useEffect(() => {
@@ -23,8 +22,8 @@ export default function RouteGuard({ children }) {
   }, [user, loading, isLoginPage, router]);
 
   if (loading) return <div className="h-screen w-screen bg-white dark:bg-black" />;
+  if (pathname?.startsWith('/terminal')) return children;
 
-  // --- THIS IS THE FIX ---
   if (isLoginPage || user) {
     return children;
   }

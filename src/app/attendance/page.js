@@ -5,7 +5,7 @@ import { useAppModal } from "../../context/ModalContext"; // Import Global Modal
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Check, X, ChevronLeft, ChevronRight, Calendar as CalendarIcon, 
-  RotateCcw, Save, Users, AlertCircle, Edit3, AlertTriangle, ArrowRight
+  RotateCcw, Save, Users, AlertCircle, Edit3, AlertTriangle, ArrowRight, PartyPopper
 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -27,6 +27,7 @@ export default function AttendancePage() {
   // Taking State
   const [currentIndex, setCurrentIndex] = useState(0);
   const [attendanceBuffer, setAttendanceBuffer] = useState({}); 
+  const [holidayInfo, setHolidayInfo] = useState(null);
 
   // Calendar Navigation
   const [calMonth, setCalMonth] = useState(new Date().getMonth()); 
@@ -78,6 +79,7 @@ export default function AttendancePage() {
         const json = await res.json();
         if(json.status === 'success') {
             setStudents(json.data);
+            setHolidayInfo(json.calendar_info || null);
             
             const buffer = {};
             json.data.forEach(s => {
@@ -350,9 +352,22 @@ export default function AttendancePage() {
                         )}
                     </div>
 
+                    {holidayInfo?.is_holiday && (
+                        <div className="w-full mb-4 p-4 rounded-2xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 flex items-start gap-3">
+                            <div className="p-2 bg-red-100 dark:bg-red-800/50 rounded-xl text-red-600 dark:text-red-400">
+                                <PartyPopper size={24} />
+                            </div>
+                            <div>
+                                <h3 className="font-bold text-red-700 dark:text-red-400">Holiday: {holidayInfo.holiday_name}</h3>
+                                <p className="text-xs text-red-600 dark:text-red-300 mt-1">School is closed. Attendance is disabled.</p>
+                            </div>
+                        </div>
+                    )}
+
                     <button 
                         onClick={() => startAttendanceSession(selectedDate, 'taking')}
-                        className="w-full bg-blue-600 hover:bg-blue-700 text-white rounded-2xl p-4 flex items-center justify-between shadow-lg shadow-blue-500/30 transition-transform active:scale-95"
+                        disabled={holidayInfo?.is_holiday}
+                        className={`w-full text-white rounded-2xl p-4 flex items-center justify-between shadow-lg transition-transform active:scale-95 ${holidayInfo?.is_holiday ? 'bg-gray-400 shadow-none cursor-not-allowed opacity-50' : 'bg-blue-600 hover:bg-blue-700 shadow-blue-500/30'}`}
                     >
                         <div className="text-left">
                             <h4 className="font-bold text-lg">

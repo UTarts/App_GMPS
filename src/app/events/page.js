@@ -25,6 +25,15 @@ import {
       fetchData();
     }, []);
   
+    // --- READ URL TAB PARAMETER ---
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const tab = params.get('tab');
+    if (tab) {
+        setActiveTab(tab); // Switches to 'notices' or 'upcoming'
+    }
+}, []);
+
     // --- NEW: Instagram Link Detector ---
     const getIgId = (text) => {
         if (!text) return null;

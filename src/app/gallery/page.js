@@ -24,6 +24,15 @@ export default function GalleryPage() {
     { id: 'infrastructure', label: 'Campus' },
   ];
 
+  // --- READ URL TAB PARAMETER ---
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const tab = params.get('tab');
+    if (tab) {
+        setActiveTab(tab); // Switches to 'reels' or 'photos'
+    }
+}, []);
+
   useEffect(() => {
     async function fetchData() {
       try {

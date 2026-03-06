@@ -3,7 +3,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useAuth } from "../../context/AuthContext";
 import { 
   ChevronLeft, Moon, Sun, LogOut, Info, Shield, 
-  Phone, Mail, MapPin, UserPlus, Users, Check, X, Loader2, School, ChevronDown 
+  Phone, Mail, MapPin, UserPlus, Users, Check, X, Loader2, School, ChevronDown, ExternalLink 
 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -173,6 +173,23 @@ export default function Settings() {
             <h2 className="font-bold text-gray-900 dark:text-white text-sm">Govind Madhav Public School</h2>
             <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Gondey, Pratapgarh, U.P.</p>
          </div>
+         <span className="flex items-center text-xs justify-center gap-2 pb-12">
+              Designed & Developed by
+              <a 
+                href="https://www.utarts.in" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="font-bold text-blue-600 hover:text-blue-700 transition-colors flex items-center gap-1.5"
+              >
+                <img 
+                  src="https://www.utarts.in/images/UTArt_Logo.webp" 
+                  alt="UT Arts Logo" 
+                  className="h-6 w-6 rounded-full object-cover border border-gray-200"
+                />
+                UT Arts
+                <ExternalLink size={10} />
+              </a>
+            </span>
       </div>
 
       {/* --- LOGOUT CONFIRM MODAL --- */}

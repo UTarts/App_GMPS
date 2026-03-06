@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@ducanh2912/next-pwa": "^10.2.9",
+    "face-api.js": "^0.22.2",
     "firebase": "^12.7.0",
     "framer-motion": "^12.23.26",
     "jspdf": "^3.0.4",

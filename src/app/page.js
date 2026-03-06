@@ -4,6 +4,8 @@ import { useAuth } from "../context/AuthContext";
 import { useTheme } from "../context/ThemeContext";
 import { useAppModal } from "../context/ModalContext"; 
 import { motion, AnimatePresence } from "framer-motion";
+import { useSession } from "../context/SessionContext";
+import SessionSwitcher from "../components/SessionSwitcher";
 import NotificationSidebar from '../components/NotificationSidebar';
 import { 
   Moon, Sun, Bell, BookOpen, Image as ImageIcon, Calendar, 
@@ -12,12 +14,14 @@ import {
   Settings, UserCheck, PenTool, MonitorPlay, PlayCircle, CalendarMinus, 
   Library, Bus, CalendarDays, BarChart3, CalendarRange, 
   Gift, Book, Download, GraduationCap, Megaphone, HelpCircle, 
-  Trophy, PhoneCall, NotebookPen, FileSpreadsheet, Activity, Wallet, MessageSquare
+  Trophy, PhoneCall, NotebookPen, FileSpreadsheet, Activity, Wallet, ExternalLink, 
+  MessageSquare, Film, Lock, UploadCloud, LibraryBig
 } from 'lucide-react';
 import Link from 'next/link';
 
 export default function Home() {
   const { user } = useAuth();
+  const { activeSession } = useSession();
   const { theme, toggleTheme } = useTheme();
   const { showModal } = useAppModal();
   const [isNotifOpen, setIsNotifOpen] = useState(false);
@@ -162,7 +166,7 @@ export default function Home() {
   const getCardStyle = () => {
     if (user?.role === 'admin') return "from-slate-800 to-black"; 
     if (user?.role === 'teacher') return "from-indigo-600 to-purple-600"; 
-    return "from-orange-500 to-amber-500"; 
+    return "from-orange-500 to-red-500"; 
   };
 
   const getBadgeText = () => {
@@ -214,8 +218,13 @@ export default function Home() {
         </div>
       </div>
 
+      {/* --- GLOBAL SESSION SWITCHER --- */}
+      <div className="px-4 mt-2 flex justify-between items-center">
+         <h2 className="text-xs font-bold text-gray-400 uppercase tracking-widest ml-1">Academic Session</h2>
+         <SessionSwitcher />
+      </div>
       {/* --- PROFILE CARD --- */}
-      <div className="px-4 mt-6 mb-8">
+      <div className="px-4 mt-2 mb-8">
         <div className="relative">
           <div className={`bg-gradient-to-r ${getCardStyle()} rounded-[2.5rem] p-7 text-white shadow-xl flex justify-between items-center relative overflow-hidden min-h-[150px]`}>
               <div className="absolute -left-10 -bottom-20 w-48 h-48 bg-white/10 rounded-full blur-3xl pointer-events-none"></div>
@@ -239,7 +248,7 @@ export default function Home() {
               <div className="relative z-20 -mr-3 flex-shrink-0"> 
                   <div className="w-28 h-28 rounded-full shadow-none bg-gray-200 overflow-hidden">
                       <img 
-                          src={user?.pic ? `${process.env.NEXT_PUBLIC_IMAGE_BASE_URL}${user.pic}` : `${process.env.NEXT_PUBLIC_IMAGE_BASE_URL}GMPSimages/default_student.png`}
+                          src={user?.pic ? `${process.env.NEXT_PUBLIC_IMAGE_BASE_URL}${user.pic}` : `${process.env.NEXT_PUBLIC_IMAGE_BASE_URL}GMPSimages/default_user.png`}
                           alt="Profile"
                           loading="lazy"
                           className="w-full h-full object-cover"
@@ -333,7 +342,7 @@ export default function Home() {
                         </Link>
 
                         {/* 4. Bottom Rectangle Card (Results) */}
-                        <Link href="/profile" className="h-[4.5rem] bg-gradient-to-r from-[#22C55E] to-[#15803D] rounded-[1.5rem] p-4 flex items-center justify-center gap-2 shadow-md shadow-green-500/20 active:scale-95 transition-transform">
+                        <Link href="/results" className="h-[4.5rem] bg-gradient-to-r from-[#22C55E] to-[#15803D] rounded-[1.5rem] p-4 flex items-center justify-center gap-2 shadow-md shadow-green-500/20 active:scale-95 transition-transform">
                            <FileSpreadsheet size={20} className="text-green-200" />
                            <h3 className="text-xl font-black text-white tracking-wide">Results</h3>
                         </Link>
@@ -344,27 +353,27 @@ export default function Home() {
                
                {/* --- CAMPUS TOOLS GRID (Untouched Icons as requested) --- */}
                <div>
-                  <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3 ml-1">Campus Tools</h3>
+                  <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest pt-3 mb-3 ml-1">Campus Tools</h3>
                   <div className="bg-white dark:bg-[#151515] border border-gray-100 dark:border-gray-800 rounded-[2rem] p-5 shadow-sm">
                      <div className="grid grid-cols-4 gap-y-6 gap-x-2">
                         <ToolAppIcon title="Notices" icon={Bell} link="/events?source=twa" iconColor="text-rose-500" />
                         <ToolAppIcon title="Timetable" icon={Clock} link="/profile" iconColor="text-indigo-500" />
-                        <ToolAppIcon title="Video Lect." icon={PlayCircle} link="#" iconColor="text-sky-500" />
-                        <ToolAppIcon title="Live Class" icon={MonitorPlay} link="#" iconColor="text-red-500" />
+                        <ToolAppIcon title="Video Lect." icon={PlayCircle} link="/virtual-class" iconColor="text-sky-500" />
+                        <ToolAppIcon title="Live Class" icon={MonitorPlay} link="/virtual-class" iconColor="text-red-500" />
                         
-                        <ToolAppIcon title="Assignments" icon={PenTool} link="#" iconColor="text-teal-500" />
-                        <ToolAppIcon title="Syllabus" icon={Book} link="#" iconColor="text-fuchsia-500" />
+                        <ToolAppIcon title="Assignments" icon={PenTool} link="/assignments" iconColor="text-teal-500" />
+                        <ToolAppIcon title="Syllabus" icon={Book} link="/syllabus" iconColor="text-fuchsia-500" />
                         <ToolAppIcon title="Notes" icon={NotebookPen} link="#" iconColor="text-amber-500" />
                         <ToolAppIcon title="Events" icon={CalendarRange} link="/events?source=twa" iconColor="text-pink-500" />
                         
-                        <ToolAppIcon title="Exam Sched." icon={CalendarDays} link="#" iconColor="text-violet-500" />
-                        <ToolAppIcon title="Library" icon={Library} link="#" iconColor="text-blue-600" />
+                        <ToolAppIcon title="Exam Sched." icon={CalendarDays} link="#" iconColor="text-red-500" />
+                        <ToolAppIcon title="Library" icon={LibraryBig} link="/library" iconColor="text-blue-600" />
                         <ToolAppIcon title="Transport" icon={Bus} link="#" iconColor="text-slate-600" />
-                        <ToolAppIcon title="Apply Leave" icon={CalendarMinus} link="#" iconColor="text-purple-500" />
+                        <ToolAppIcon title="Apply Leave" icon={CalendarMinus} link="/apply-leave" iconColor="text-purple-500" />
                         
                         <ToolAppIcon title="My Rank" icon={Trophy} link="#" iconColor="text-yellow-500" />
                         <ToolAppIcon title="Downloads" icon={Download} link="#" iconColor="text-gray-500" />
-                        <ToolAppIcon title="Birthdays" icon={Gift} link="#" iconColor="text-rose-400" />
+                        <ToolAppIcon title="Calendar" icon={CalendarDays} link="/calendar" iconColor="text-purple-600" />
                         <ToolAppIcon title="Directory" icon={PhoneCall} link="#" iconColor="text-emerald-600" />
                      </div>
                   </div>
@@ -377,37 +386,54 @@ export default function Home() {
          {/* ------------------------------------------------ */}
          {user?.role === 'teacher' && (
             <div className="space-y-6">
+               
                {/* Creative Bento for Teachers */}
                <div>
                   <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3 ml-1">Core Essentials</h3>
                   <div className="grid grid-cols-2 gap-3 h-[18rem]">
-                     <Link href="/teacher?source=twa" className="col-span-2 bg-gradient-to-r from-[#818CF8] to-[#4F46E5] rounded-[2rem] p-5 flex items-center justify-between shadow-md active:scale-95 transition-transform">
+                     
+                     {/* 1. UPLOAD WORK (Full Width) */}
+                     <Link href="/work_upload" className="col-span-2 bg-gradient-to-r from-[#818CF8] to-[#4F46E5] rounded-[2rem] p-5 flex items-center justify-between shadow-md active:scale-95 transition-transform">
                         <div>
-                           <h3 className="text-3xl font-black text-white leading-none">Teacher App</h3>
-                           <p className="text-indigo-100 text-xs font-medium mt-1">Manage Class DB</p>
+                           <h3 className="text-3xl font-black text-white leading-none">Upload Work</h3>
+                           <p className="text-indigo-100 text-xs font-medium mt-1">Assignments & Study Material</p>
                         </div>
                         <div className="w-14 h-14 bg-white/20 rounded-full flex items-center justify-center text-white backdrop-blur-md">
-                           <Edit3 size={28} />
+                           <UploadCloud size={28} />
                         </div>
                      </Link>
 
-                     <Link href="/work?source=twa" className="col-span-1 bg-gradient-to-b from-[#FDA4AF] to-[#E11D48] rounded-[2rem] p-5 flex flex-col justify-between shadow-md active:scale-95 transition-transform relative overflow-hidden">
+                     {/* 2. MY STUDENTS (Tall Card - Locked for Subject Teachers) */}
+                     <Link href={user?.assigned_class_id ? "/teacher?tab=my_students" : "#"} 
+                           onClick={(e) => { if(!user?.assigned_class_id) e.preventDefault(); }}
+                           className={`col-span-1 bg-gradient-to-b from-[#FDA4AF] to-[#E11D48] rounded-[2rem] p-5 flex flex-col justify-between shadow-md relative overflow-hidden ${user?.assigned_class_id ? 'active:scale-95 transition-transform' : 'opacity-70 cursor-not-allowed'}`}>
                         <div className="relative z-10 flex flex-col items-center h-full pt-2">
-                           <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center text-white backdrop-blur-md shrink-0"><BookOpen size={20} /></div>
-                           <div className="flex-1 flex items-center justify-center">
-                              <h3 className="text-3xl font-black text-white tracking-wider" style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)' }}>Upload Work</h3>
+                           <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center text-white backdrop-blur-md shrink-0"><Users size={20} /></div>
+                           <div className="flex-1 flex flex-col items-center justify-center mt-2 text-center">
+                               <h3 className="text-2xl font-black text-white tracking-wide leading-tight">My<br/>Students</h3>
                            </div>
                         </div>
-                        <BookOpen className="absolute -bottom-6 -right-6 w-32 h-32 text-white opacity-20 transform -rotate-12 pointer-events-none" />
+                        <Users className="absolute -bottom-6 -right-6 w-32 h-32 text-white opacity-20 transform -rotate-12 pointer-events-none" />
+                        
+                        {/* Lock Overlay for Subject Teachers */}
+                        {!user?.assigned_class_id && (
+                            <div className="absolute inset-0 bg-black/30 backdrop-blur-[2px] z-20 flex flex-col items-center justify-center rounded-[2rem]">
+                                <Lock className="text-white opacity-80 mb-1" size={28}/>
+                                <span className="text-[9px] font-bold text-white uppercase tracking-widest text-center px-2">Class Teachers<br/>Only</span>
+                            </div>
+                        )}
                      </Link>
 
+                     {/* 3. ATTENDANCE & MARKS (Stacked) */}
                      <div className="col-span-1 flex flex-col gap-3">
-                        <Link href="#" className="flex-1 rounded-[2rem] bg-gradient-to-br from-[#34D399] to-[#059669] flex flex-col items-center justify-center shadow-md active:scale-95 transition-transform p-4 text-center">
+                        <Link href="/attendance?source=twa" className="flex-1 rounded-[2rem] bg-gradient-to-br from-[#34D399] to-[#059669] flex flex-col items-center justify-center shadow-md active:scale-95 transition-transform p-4 text-center">
+                            <CheckCircle2 size={24} className="text-teal-200 mb-2 relative z-10" />
                            <p className="text-emerald-100 text-[11px] uppercase tracking-widest font-bold mb-1">Register</p>
                            <h3 className="text-2xl font-black text-white leading-none">Attendance</h3>
                         </Link>
-                        <Link href="#" className="h-[4.5rem] bg-gradient-to-r from-[#FBBF24] to-[#D97706] rounded-[1.5rem] p-4 flex items-center justify-center shadow-md active:scale-95 transition-transform">
-                           <h3 className="text-xl font-black text-white tracking-wide">Upload Marks</h3>
+                        <Link href="/teacher?tab=marks" className="h-[4.5rem] bg-gradient-to-r from-[#FBBF24] to-[#D97706] rounded-[1.5rem] p-4 flex items-center justify-center shadow-md active:scale-95 transition-transform gap-3">
+                           <h3 className="text-lg font-black text-white tracking-wide">Marks Entry</h3>
+                           <FileSpreadsheet size={20} className="text-orange-200" />
                         </Link>
                      </div>
                   </div>
@@ -418,20 +444,31 @@ export default function Home() {
                   <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3 ml-1">Staff Tools</h3>
                   <div className="bg-white dark:bg-[#151515] border border-gray-100 dark:border-gray-800 rounded-[2rem] p-5 shadow-sm">
                      <div className="grid grid-cols-4 gap-y-6 gap-x-2">
-                        <ToolAppIcon title="Live Class" icon={MonitorPlay} link="#" iconColor="text-red-500" />
-                        <ToolAppIcon title="Video Lect." icon={PlayCircle} link="#" iconColor="text-sky-500" />
-                        <ToolAppIcon title="Timetable" icon={Clock} link="#" iconColor="text-indigo-500" />
-                        <ToolAppIcon title="Assignments" icon={PenTool} link="#" iconColor="text-teal-500" />
+                        {/* Top Row */}
+                        <ToolAppIcon title="My Atten." icon={UserCheck} link="/teacher/my-attendance" iconColor="text-green-500" />
+                        <ToolAppIcon title="Notices" icon={Bell} link="/events?tab=notices" iconColor="text-rose-500" />
+                        <ToolAppIcon title="Events" icon={CalendarRange} link="/events?tab=timeline" iconColor="text-pink-500" />
+                        <ToolAppIcon title="Timetable" icon={Clock} link="/teacher?tab=timetable" iconColor="text-indigo-500" />
                         
-                        <ToolAppIcon title="Notices" icon={Bell} link="/events?source=twa" iconColor="text-rose-500" />
-                        <ToolAppIcon title="Events" icon={CalendarRange} link="/events?source=twa" iconColor="text-pink-500" />
-                        <ToolAppIcon title="Gallery" icon={ImageIcon} link="/gallery?source=twa" iconColor="text-purple-500" />
-                        <ToolAppIcon title="Apply Leave" icon={CalendarMinus} link="#" iconColor="text-orange-500" />
-                        
-                        <ToolAppIcon title="Directory" icon={PhoneCall} link="#" iconColor="text-blue-500" />
+                        {/* Second Row */}
+                        <ToolAppIcon title="Gallery" icon={ImageIcon} link="/gallery" iconColor="text-purple-500" />
+                        <ToolAppIcon title="Reels" icon={Film} link="/gallery?tab=reels" iconColor="text-red-500" />
+                        <ToolAppIcon title="Apply Leave" icon={CalendarMinus} link="/apply-leave" iconColor="text-orange-500" />
+                        <ToolAppIcon title="Ac. Calendar" icon={CalendarDays} link="/calendar" iconColor="text-purple-600" />
+
+                        {/* Third Row */}
+                        <ToolAppIcon title="Toppers" icon={Award} link="/teacher?tab=toppers" iconColor="text-amber-500" />
+                        <ToolAppIcon title="Report Cards" icon={FileText} link="/teacher?tab=report_cards" iconColor="text-blue-500" />
+                        <ToolAppIcon title="Post history" icon={Clock} link="/work_history" iconColor="text-cyan-500" />
+                        <ToolAppIcon title="My Profile" icon={User} link="/teacher" iconColor="text-slate-600" />
+
+                        {/* Fourth Row (Future Features) */}
+                        <ToolAppIcon title="Syllabus" icon={Book} link="/syllabus" iconColor="text-fuchsia-500" />
+                        <ToolAppIcon title="Virtual Class" icon={MonitorPlay} link="/virtual-class" iconColor="text-red-500" />
                         <ToolAppIcon title="Payslips" icon={Wallet} link="#" iconColor="text-emerald-600" />
-                        <ToolAppIcon title="Suggestion" icon={MessageSquare} link="#" iconColor="text-cyan-500" />
-                        <ToolAppIcon title="My Profile" icon={User} link="/profile" iconColor="text-slate-600" />
+
+                        <ToolAppIcon title="Assignments" icon={PenTool} link="/assignments" iconColor="text-teal-500" />
+                        <ToolAppIcon title="Library" icon={LibraryBig} link="/library" iconColor="text-blue-600" />
                      </div>
                   </div>
                </div>
@@ -461,7 +498,7 @@ export default function Home() {
                         <div className="relative z-10 flex flex-col items-center h-full pt-2">
                            <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center text-white backdrop-blur-md shrink-0"><GraduationCap size={20} /></div>
                            <div className="flex-1 flex items-center justify-center">
-                              <h3 className="text-3xl font-black text-white tracking-wider" style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)' }}>Students</h3>
+                              <h3 className="text-3xl font-black text-white tracking-wide">Students</h3>
                            </div>
                         </div>
                         <GraduationCap className="absolute -bottom-6 -right-6 w-32 h-32 text-white opacity-20 transform -rotate-12 pointer-events-none" />
@@ -469,10 +506,14 @@ export default function Home() {
 
                      <div className="col-span-1 flex flex-col gap-3">
                         <Link href="/admin/teachers" className="flex-1 rounded-[2rem] bg-gradient-to-br from-[#D8B4FE] to-[#9333EA] flex flex-col items-center justify-center shadow-md active:scale-95 transition-transform p-4 text-center">
+                        <User size={20} className="text-purple-200" />
                            <p className="text-purple-100 text-[11px] uppercase tracking-widest font-bold mb-1">Manage Staff</p>
                            <h3 className="text-2xl font-black text-white leading-none">Teachers</h3>
                         </Link>
                         <Link href="#" className="h-[4.5rem] bg-gradient-to-r from-[#6EE7B7] to-[#059669] rounded-[1.5rem] p-4 flex items-center justify-center shadow-md active:scale-95 transition-transform">
+                        <div className="w-10 h-10  flex items-center rounded-full justify-center text-white backdrop-blur-md shrink-0 mb-2">
+                              <CreditCard size={20} />
+                           </div>
                            <h3 className="text-xl font-black text-white tracking-wide">Fees Setup</h3>
                         </Link>
                      </div>
@@ -494,6 +535,7 @@ export default function Home() {
                         <ToolAppIcon title="SMS Blast" icon={MessageSquare} link="#" iconColor="text-indigo-500" />
                         <ToolAppIcon title="Expenses" icon={CreditCard} link="#" iconColor="text-rose-500" />
                         
+                        <ToolAppIcon title="Calendar" icon={CalendarDays} link="/calendar" iconColor="text-purple-600" />
                         <ToolAppIcon title="Complaints" icon={HelpCircle} link="#" iconColor="text-fuchsia-500" />
                         <ToolAppIcon title="Settings" icon={Settings} link="/settings" iconColor="text-gray-600" />
                      </div>
@@ -556,7 +598,7 @@ export default function Home() {
 
                     <div className="mt-1 w-12 h-12 rounded-full p-[2px] bg-gradient-to-tr from-gray-100 to-gray-300 dark:from-gray-700 dark:to-gray-800 mb-2">
                       <img 
-                        src={`${process.env.NEXT_PUBLIC_IMAGE_BASE_URL}${top.image_url || 'GMPSimages/default_student.png'}`} 
+                        src={`${process.env.NEXT_PUBLIC_IMAGE_BASE_URL}${top.image_url || 'GMPSimages/default_user.png'}`} 
                         className="w-full h-full rounded-full object-cover border border-white dark:border-[#151515]"
                         loading="lazy"
                         alt={top.student_name}
@@ -739,7 +781,7 @@ export default function Home() {
       </div>
 
       {/* --- FOOTER --- */}
-      <div className="pt-8 pb-10 text-center border-t border-gray-200 dark:border-gray-800 bg-white dark:bg-[#050505]">
+      <div className="pt-8 pb-10 text-center border-t border-gray-200 dark:border-gray-800 dark:bg-[#050505]">
          <div className="flex justify-center gap-6 mb-6">
             {data?.contacts?.phone && (
                <a href={`tel:${data.contacts.phone}`} className="w-10 h-10 bg-green-50 dark:bg-green-900/20 rounded-full flex items-center justify-center text-green-600 shadow-sm border border-green-100 dark:border-green-900/30">
@@ -761,14 +803,23 @@ export default function Home() {
             <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Gondey, Pratapgarh, U.P.</p>
          </div>
 
-         <a href="https://www.utarts.in" target="_blank" rel="noopener noreferrer" className="inline-block hover:opacity-80 transition-opacity">
-            <img 
-                src="https://utarts.in/images/poweredbyutarts.webp" 
-                alt="Powered by UT Arts" 
-                className="h-6 w-auto mx-auto mb-1" 
-            />
-            <span className="text-[9px] text-gray-400 tracking-wider font-medium">visit www.utarts.in</span>
-         </a>
+         <span className="flex items-center text-xs justify-center gap-2 pb-12">
+              Designed & Developed by
+              <a 
+                href="https://www.utarts.in" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="font-bold text-blue-600 hover:text-blue-700 transition-colors flex items-center gap-1.5"
+              >
+                <img 
+                  src="https://www.utarts.in/images/UTArt_Logo.webp" 
+                  alt="UT Arts Logo" 
+                  className="h-6 w-6 rounded-full object-cover border border-gray-200"
+                />
+                UT Arts
+                <ExternalLink size={10} />
+              </a>
+            </span>
       </div>
       <NotificationSidebar 
                 isOpen={isNotifOpen} 

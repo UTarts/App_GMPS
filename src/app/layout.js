@@ -13,6 +13,7 @@ import { ThemeProvider } from "../context/ThemeContext";
 import { ModalProvider } from "../context/ModalContext";
 import useFcmToken from "../hooks/useFcmToken";
 import NotificationManager from "../components/NotificationManager";
+import { SessionProvider } from "../context/SessionContext";
 
 import { Suspense } from "react";
 function FcmHandler() {
@@ -34,6 +35,7 @@ export default function RootLayout({ children }) {
       <body className="bg-gray-50 dark:bg-gray-950 transition-colors duration-300">
         <Suspense fallback={<div className="h-screen w-screen bg-white dark:bg-black" />}>
           <AuthProvider>
+          <SessionProvider>
             <ThemeProvider>
               <ModalProvider>
                 <NetworkStatus />
@@ -41,7 +43,7 @@ export default function RootLayout({ children }) {
                 <FcmHandler />
                 <RouteGuard>
                   <PullToRefresh>
-                    <div className="min-h-screen pb-24 relative overflow-x-hidden">
+                    <div className="min-h-screen pb-0 relative overflow-x-hidden">
                       {children}
                     </div>
                   </PullToRefresh>
@@ -49,6 +51,7 @@ export default function RootLayout({ children }) {
                 </RouteGuard>
               </ModalProvider>
             </ThemeProvider>
+            </SessionProvider>
           </AuthProvider>
         </Suspense>
       </body>

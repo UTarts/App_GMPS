@@ -2,8 +2,10 @@
 import { useEffect, useState, useRef } from 'react';
 import { useAuth } from "../../context/AuthContext";
 import { useAppModal } from "../../context/ModalContext"; // Import Global Modal
+import { useSession } from "../../context/SessionContext";
+import SessionSwitcher from "../../components/SessionSwitcher";
 import { motion, AnimatePresence } from 'framer-motion';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { 
   LogOut, Plus, Trash2, Save, User, Calendar, 
   BookOpen, CheckSquare, BarChart2, Award, FileText, Upload,
@@ -91,12 +93,22 @@ function CustomSelect({ options, value, onChange, placeholder, allowManual = fal
 
 export default function TeacherPage() {
     const { user, logout } = useAuth();
-    const { showModal } = useAppModal(); // Use Global Modal
+    const { showModal } = useAppModal(); 
+    const { activeSession } = useSession();
+    const isHistorical = activeSession !== "2026-2027";
     const router = useRouter();
     const [dashboardData, setDashboardData] = useState(null);
     const [activeSection, setActiveSection] = useState('profile');
     const [loading, setLoading] = useState(true);
 
+    // --- READ URL TAB PARAMETER ---
+    useEffect(() => {
+        const params = new URLSearchParams(window.location.search);
+        const tab = params.get('tab');
+        if (tab) {
+            setActiveSection(tab);
+        }
+    }, []);
     useEffect(() => {
         async function init() {
             if (!user?.id) return;
@@ -144,6 +156,21 @@ export default function TeacherPage() {
                 {activeSection === 'profile' && (
                     <div className="p-4 space-y-4 animate-in fade-in zoom-in duration-300">
                         
+                        {/* --- SESSION SWITCHER --- */}
+                        <div className="mb-4 flex justify-center">
+                            <SessionSwitcher />
+                        </div>
+
+                        {isHistorical && (
+                            <div className="bg-orange-50 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 p-3 rounded-xl mb-4 flex items-start gap-2 text-sm font-medium border border-orange-200 dark:border-orange-800">
+                                <AlertCircle size={20} className="shrink-0 mt-0.5" />
+                                <div>
+                                    <p className="font-bold">Historical View</p>
+                                    <p className="text-xs opacity-90">Data editing is disabled for past sessions to protect historical records.</p>
+                                </div>
+                            </div>
+                        )}
+
                         {/* 1. TEACHER PROFILE CARD (Updated Style) */}
                         <div className="relative mb-6">
                             <div className="bg-gradient-to-r from-indigo-600 to-purple-600 rounded-[2rem] p-6 text-white shadow-xl shadow-indigo-500/25 relative overflow-hidden">
@@ -171,12 +198,12 @@ export default function TeacherPage() {
 
                         {/* 2. BENTO GRID ACTIONS */}
                         <div className="grid grid-cols-2 gap-3">
-                            <button onClick={() => setActiveSection('create_post')} className="col-span-2 bg-gradient-to-r from-blue-600 to-cyan-600 text-white p-5 rounded-2xl shadow-lg flex items-center justify-between active:scale-95 transition-transform">
-                                <div className="text-left"><h3 className="font-bold text-lg">Create Update</h3><p className="text-blue-100 text-xs opacity-90">Homework, Notices & Files</p></div>
+                        <button disabled={isHistorical} onClick={() => router.push('/work_upload')} className={`col-span-2 p-5 rounded-2xl flex items-center justify-between transition-transform ${isHistorical ? 'bg-gray-300 dark:bg-gray-800 text-gray-500 cursor-not-allowed opacity-60' : 'bg-gradient-to-r from-blue-600 to-cyan-600 text-white shadow-lg active:scale-95'}`}>
+                                <div className="text-left"><h3 className="font-bold text-lg">Create Update</h3><p className={`${isHistorical ? 'text-gray-500' : 'text-blue-100'} text-xs opacity-90`}>Homework, Notices & Files</p></div>
                                 <div className="bg-white/20 p-3 rounded-full"><FileText size={24} /></div>
                             </button>
 
-                            <button onClick={() => setActiveSection('recent_posts')} className="bg-white dark:bg-[#151515] p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 flex flex-col items-center justify-center gap-2 active:scale-95 transition-transform h-32">
+                            <button onClick={() => router.push('/work_history')} className="bg-white dark:bg-[#151515] p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 flex flex-col items-center justify-center gap-2 active:scale-95 transition-transform h-32">
                                 <div className="bg-orange-50 dark:bg-orange-900/20 text-orange-600 p-2.5 rounded-full"><Clock size={22} /></div>
                                 <span className="font-bold text-sm text-gray-800 dark:text-white">History</span>
                             </button>
@@ -193,14 +220,18 @@ export default function TeacherPage() {
                             )}
 
                             {isClassTeacher && (
-                                <button onClick={() => router.push('/attendance?source=twa')} className="bg-white dark:bg-[#151515] p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 flex flex-col items-center justify-center gap-2 active:scale-95 transition-transform h-32">
+                                <button disabled={isHistorical} onClick={() => router.push('/attendance?source=twa')} className={`bg-white dark:bg-[#151515] p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 flex flex-col items-center justify-center gap-2 transition-transform h-32 ${isHistorical ? 'opacity-50 cursor-not-allowed' : 'active:scale-95'}`}>
                                     <div className="bg-purple-50 dark:bg-purple-900/20 text-purple-600 p-2.5 rounded-full"><CheckSquare size={22} /></div>
                                     <span className="font-bold text-sm text-gray-800 dark:text-white">Attendance</span>
                                 </button>
                             )}
 
-                            {isClassTeacher && ['marks', 'timetable', 'report_cards', 'toppers'].map(item => (
-                                <button key={item} onClick={() => setActiveSection(item)} className="bg-white dark:bg-[#151515] p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 flex flex-col items-center justify-center gap-2 active:scale-95 transition-transform h-32">
+                            {isClassTeacher && ['marks', 'timetable', 'report_cards','co_scholastics', 'toppers'].map(item => (
+                                <button disabled={isHistorical} key={item} onClick={() => {
+                                    if (item === 'marks') router.push('/marks_entry');
+                                    else if (item === 'co_scholastics') router.push('/term_assessment');
+                                    else setActiveSection(item);
+                                }} className={`bg-white dark:bg-[#151515] p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 flex flex-col items-center justify-center gap-2 transition-transform h-32 ${isHistorical ? 'opacity-50 cursor-not-allowed' : 'active:scale-95'}`}>
                                     <div className={`p-2.5 rounded-full ${
                                         item==='marks'?'bg-pink-50 text-pink-600 dark:bg-pink-900/20':
                                         item==='timetable'?'bg-indigo-50 text-indigo-600 dark:bg-indigo-900/20':
@@ -235,83 +266,6 @@ export default function TeacherPage() {
     );
 }
 
-// ----------------------------------------------------------------------
-// SUB-COMPONENT: MARKS ENTRY
-// ----------------------------------------------------------------------
-function MarksSection({ classId, onBack, showModal }) {
-    const [exams, setExams] = useState([]);
-    const [subjects, setSubjects] = useState([]);
-    const [selectedExam, setSelectedExam] = useState('');
-    const [selectedSubject, setSelectedSubject] = useState('');
-    const [studentMarks, setStudentMarks] = useState([]);
-    const [loading, setLoading] = useState(false);
-
-    useEffect(() => {
-        async function loadOptions() {
-             const fd = new FormData(); fd.append('action', 'fetch_timetable'); fd.append('class_id', classId);
-             const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/teacher_app.php`, { method: 'POST', body: fd });
-             const json = await res.json();
-             if(json.status==='success') setSubjects(json.subjects.map(s => ({ value: s.code, label: s.name })));
-
-             const fd2 = new FormData(); fd2.append('action', 'fetch_exams_status'); fd2.append('class_id', classId);
-             const res2 = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/teacher_app.php`, { method: 'POST', body: fd2 });
-             const json2 = await res2.json();
-             if(json2.status==='success') setExams(json2.data.map(e => ({ value: e.id, label: e.name })));
-        }
-        loadOptions();
-    }, [classId]);
-
-    const loadSheet = async () => {
-        if(!selectedExam || !selectedSubject) return;
-        setLoading(true);
-        const fd = new FormData(); fd.append('action', 'fetch_marks_sheet'); fd.append('class_id', classId); fd.append('exam_id', selectedExam); fd.append('subject_code', selectedSubject);
-        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/teacher_app.php`, { method: 'POST', body: fd });
-        const json = await res.json();
-        if(json.status==='success') setStudentMarks(json.data);
-        setLoading(false);
-    };
-
-    const saveBulkMarks = async () => {
-        const marksData = {};
-        studentMarks.forEach(s => { if(s.marks_obtained !== null) marksData[s.id] = s.marks_obtained; });
-        const fd = new FormData(); fd.append('action', 'save_marks_bulk'); fd.append('exam_id', selectedExam); fd.append('subject_code', selectedSubject); fd.append('marks_data', JSON.stringify(marksData));
-        await fetch(`${process.env.NEXT_PUBLIC_API_URL}/teacher_app.php`, { method: 'POST', body: fd });
-        showModal("Saved", "Marks updated successfully.", "success");
-    };
-
-    return (
-        <div className="bg-gray-50 dark:bg-[#0a0a0a] h-full flex flex-col">
-            <div className="sticky top-0 bg-white dark:bg-[#151515] z-40 px-5 py-4 border-b border-gray-100 dark:border-gray-800 flex items-center gap-4 shadow-sm shrink-0">
-                <button onClick={onBack} className="p-2 -ml-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800"><ArrowLeft size={20} className="dark:text-white"/></button>
-                <h2 className="text-lg font-black text-gray-800 dark:text-white">Marks Entry</h2>
-            </div>
-            <div className="p-4 flex-1 overflow-y-auto">
-                <div className="bg-white dark:bg-[#151515] p-4 rounded-xl border border-gray-100 dark:border-gray-800 shadow-sm mb-4 space-y-3">
-                    <div>
-                        <label className="text-xs font-bold text-gray-400 uppercase mb-1 block">Select Exam</label>
-                        <CustomSelect options={exams} value={selectedExam} onChange={setSelectedExam} placeholder="Choose Exam..." />
-                    </div>
-                    <div>
-                        <label className="text-xs font-bold text-gray-400 uppercase mb-1 block">Select Subject</label>
-                        <CustomSelect options={subjects} value={selectedSubject} onChange={setSelectedSubject} placeholder="Choose Subject..." />
-                    </div>
-                    <button onClick={loadSheet} disabled={!selectedExam || !selectedSubject} className="w-full py-3 bg-blue-600 text-white rounded-xl font-bold text-sm shadow-lg shadow-blue-500/30">Load Sheet</button>
-                </div>
-                {loading ? <div className="text-center py-10 dark:text-gray-400">Loading...</div> : (
-                    <div className="space-y-2">
-                        {studentMarks.map(stu => (
-                            <div key={stu.id} className="flex items-center justify-between bg-white dark:bg-[#151515] p-3 rounded-xl border border-gray-100 dark:border-gray-800">
-                                <div><p className="font-bold text-sm dark:text-white">{stu.name}</p><p className="text-xs text-gray-400">Roll: {stu.roll_no}</p></div>
-                                <input type="number" value={stu.marks_obtained || ''} placeholder="-" onChange={e => setStudentMarks(p => p.map(s => s.id === stu.id ? { ...s, marks_obtained: e.target.value } : s))} className="w-16 p-2 text-center font-bold bg-gray-50 dark:bg-black rounded-lg border-none outline-none dark:text-white"/>
-                            </div>
-                        ))}
-                    </div>
-                )}
-            </div>
-            {studentMarks.length > 0 && <div className="p-4 bg-white dark:bg-[#151515] border-t border-gray-100 dark:border-gray-800"><button onClick={saveBulkMarks} className="w-full py-3 bg-green-600 text-white rounded-xl font-bold shadow-lg flex items-center justify-center gap-2"><Save size={18}/> Save All Marks</button></div>}
-        </div>
-    );
-}
 
 // ----------------------------------------------------------------------
 // SUB-COMPONENT: TIMETABLE
@@ -395,10 +349,11 @@ function TimetableSection({ classId, onBack, showModal }) {
 }
 
 // ----------------------------------------------------------------------
-// SUB-COMPONENT: REPORT CARDS (Publishing)
+// SUB-COMPONENT: REPORT CARDS (Publishing & Printing)
 // ----------------------------------------------------------------------
 function ReportCardsSection({ classId, onBack, showModal }) {
     const [exams, setExams] = useState([]);
+    const router = useRouter();
 
     useEffect(() => {
         const load = async () => {
@@ -415,6 +370,14 @@ function ReportCardsSection({ classId, onBack, showModal }) {
         const fd = new FormData(); fd.append('action', 'toggle_publish'); fd.append('class_id', classId); fd.append('exam_id', eid); fd.append('status', newStatus);
         await fetch(`${process.env.NEXT_PUBLIC_API_URL}/teacher_app.php`, { method: 'POST', body: fd });
         setExams(prev => prev.map(e => e.id === eid ? { ...e, is_published: newStatus } : e));
+        
+        if (newStatus === 1) {
+            showModal("Published!", "Report cards are now live on student apps, and push notifications have been sent.", "success");
+        }
+    };
+
+    const handlePrint = (eid) => {
+        router.push(`/print_report?class_id=${classId}&exam_id=${eid}`);
     };
 
     return (
@@ -424,20 +387,29 @@ function ReportCardsSection({ classId, onBack, showModal }) {
                 <h2 className="text-lg font-black text-gray-800 dark:text-white">Report Cards</h2>
             </div>
             <div className="p-4 flex-1 overflow-auto">
-                <div className="space-y-3">
+                <div className="space-y-4">
                     {exams.map(ex => (
-                        <div key={ex.id} className="bg-white dark:bg-[#151515] p-4 rounded-xl border border-gray-100 dark:border-gray-800 flex justify-between items-center shadow-sm">
-                            <div>
-                                <h4 className="font-bold text-gray-900 dark:text-white">{ex.name}</h4>
-                                <p className={`text-xs font-bold ${ex.is_published == 1 ? 'text-green-600' : 'text-gray-400'}`}>
-                                    {ex.is_published == 1 ? 'Live to Students' : 'Hidden'}
-                                </p>
+                        <div key={ex.id} className="bg-white dark:bg-[#151515] p-5 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm">
+                            <div className="flex justify-between items-start mb-4 border-b border-gray-100 dark:border-gray-800 pb-3">
+                                <div>
+                                    <h4 className="font-bold text-gray-900 dark:text-white text-lg">{ex.name}</h4>
+                                    <p className={`text-xs font-bold mt-1 ${ex.is_published == 1 ? 'text-green-600' : 'text-gray-400'}`}>
+                                        {ex.is_published == 1 ? 'Live to Students' : 'Draft / Hidden'}
+                                    </p>
+                                </div>
+                                <button 
+                                    onClick={() => togglePublish(ex.id, ex.is_published)}
+                                    className={`w-12 h-6 rounded-full p-1 transition-colors ${ex.is_published == 1 ? 'bg-green-500' : 'bg-gray-300'}`}
+                                >
+                                    <div className={`w-4 h-4 bg-white rounded-full shadow-sm transform transition-transform ${ex.is_published == 1 ? 'translate-x-6' : 'translate-x-0'}`}></div>
+                                </button>
                             </div>
+                            
                             <button 
-                                onClick={() => togglePublish(ex.id, ex.is_published)}
-                                className={`w-12 h-6 rounded-full p-1 transition-colors ${ex.is_published == 1 ? 'bg-green-500' : 'bg-gray-300'}`}
+                                onClick={() => handlePrint(ex.id)}
+                                className="w-full bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400 py-3 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-blue-100 transition-colors"
                             >
-                                <div className={`w-4 h-4 bg-white rounded-full shadow-sm transform transition-transform ${ex.is_published == 1 ? 'translate-x-6' : 'translate-x-0'}`}></div>
+                                <Printer size={18}/> Generate Print Preview
                             </button>
                         </div>
                     ))}
