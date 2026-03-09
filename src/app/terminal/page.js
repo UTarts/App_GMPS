@@ -1,10 +1,9 @@
 "use client";
 import React, { useEffect, useState, useRef } from 'react';
 import * as faceapi from 'face-api.js';
-import { Lock, Shield, ArrowLeft, Camera, Check, LogOut, ScanFace, ScanLine, Search, User, X, AlertTriangle, ChevronDown, Maximize } from 'lucide-react';
+import { Lock, Shield, ArrowLeft, Camera, Check, LogOut, ScanFace, ScanLine, Search, User, X, AlertTriangle, ChevronDown, Maximize, Keyboard } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
-const TERMINAL_PIN = "62126636"; 
 const SESSION_DURATION = 2 * 60 * 60 * 1000; 
 
 export default function TerminalPage() {
@@ -20,13 +19,13 @@ export default function TerminalPage() {
     const [stats, setStats] = useState({ total: 0, present: 0 });
     const [scanType, setScanType] = useState('in'); 
     const [statusMsg, setStatusMsg] = useState('');
-    const [scanResult, setScanResult] = useState(null); // Combined Success/Error data
+    const [scanResult, setScanResult] = useState(null); 
     const [selectedTeacher, setSelectedTeacher] = useState('');
 
     const videoRef = useRef(null);
     const streamRef = useRef(null);
-    const scanIntervalRef = useRef(null);
-    const isScanningRef = useRef(false); // RACE-CONDITION LOCK
+    const scanTimeoutRef = useRef(null); // Changed from Interval to Timeout
+    const isScanningRef = useRef(false); 
 
     // --- ANTI-BACK BUTTON & HISTORY TRAP ---
     useEffect(() => {
@@ -59,14 +58,26 @@ export default function TerminalPage() {
         return () => clearInterval(sessionChecker);
     }, []);
 
-    const handleLogin = (val) => {
-        if (val === TERMINAL_PIN) {
-            localStorage.setItem('gmps_terminal_auth', Date.now().toString());
-            setAuth(true);
-            setView('hub');
-            setPinInput('');
-        } else {
-            setAlertModal({ title: "Unauthorized", msg: "Incorrect PIN entered.", type: "error" });
+    const handleLogin = async (val) => {
+        try {
+            // Send the PIN to the server for verification
+            const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/terminal.php`, {
+                method: 'POST',
+                body: JSON.stringify({ action: 'verify_pin', pin: val })
+            });
+            const json = await res.json();
+
+            if (json.status === 'success') {
+                localStorage.setItem('gmps_terminal_auth', Date.now().toString());
+                setAuth(true);
+                setView('hub');
+                setPinInput('');
+            } else {
+                setAlertModal({ title: "Unauthorized", msg: "Incorrect PIN entered.", type: "error" });
+                setPinInput('');
+            }
+        } catch (error) {
+            setAlertModal({ title: "Network Error", msg: "Could not verify PIN.", type: "error" });
             setPinInput('');
         }
     };
@@ -100,27 +111,34 @@ export default function TerminalPage() {
 
     const loadModels = async () => {
         try {
+            // SWITCHED TO TINY FACE DETECTOR FOR 99% LIGHTER LOAD
             await Promise.all([
-                faceapi.nets.ssdMobilenetv1.loadFromUri('/models'),
+                faceapi.nets.tinyFaceDetector.loadFromUri('/models'), 
                 faceapi.nets.faceLandmark68Net.loadFromUri('/models'),
                 faceapi.nets.faceRecognitionNet.loadFromUri('/models')
             ]);
             setModelsLoaded(true);
-        } catch (e) { console.error(e); }
+        } catch (e) { console.error("Model load error:", e); }
     };
 
-    // --- FULLSCREEN KIOSK ---
     const enableFullscreen = () => {
         if (document.documentElement.requestFullscreen) {
             document.documentElement.requestFullscreen().catch(e => console.error(e));
         }
     };
 
-    // --- CAMERA & SCAN LOGIC ---
+    // --- OPTIMIZED CAMERA LOGIC ---
     const startCamera = async () => {
         setStatusMsg("Initializing Hardware...");
         try {
-            const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } });
+            // FORCED LOW RESOLUTION TO SAVE RAM AND CPU
+            const stream = await navigator.mediaDevices.getUserMedia({ 
+                video: { 
+                    facingMode: "user",
+                    width: { ideal: 480 },
+                    height: { ideal: 360 }
+                } 
+            });
             if (videoRef.current) videoRef.current.srcObject = stream;
             streamRef.current = stream;
         } catch (e) { setStatusMsg("Camera Access Denied."); }
@@ -128,13 +146,14 @@ export default function TerminalPage() {
 
     const stopCamera = () => {
         isScanningRef.current = false;
-        if (scanIntervalRef.current) clearInterval(scanIntervalRef.current);
+        if (scanTimeoutRef.current) clearTimeout(scanTimeoutRef.current);
         if (streamRef.current) {
             streamRef.current.getTracks().forEach(t => t.stop());
             streamRef.current = null;
         }
     };
 
+    // --- THE SMART LOOP SCANNER ---
     const beginLiveScan = async (type) => {
         if (!modelsLoaded) return setAlertModal({ title: "Loading", msg: "AI Models are still initializing.", type: "warning" });
         setScanType(type);
@@ -152,29 +171,43 @@ export default function TerminalPage() {
 
         const faceMatcher = new faceapi.FaceMatcher(labeledDescriptors, 0.45);
         setStatusMsg("Analyzing biometrics...");
-        
-        // OPEN THE LOCK
         isScanningRef.current = true;
 
-        scanIntervalRef.current = setInterval(async () => {
-            // If the lock is closed, do absolutely nothing (prevents double-firing)
-            if (!videoRef.current || videoRef.current.readyState !== 4 || !isScanningRef.current) return;
+        // Recursive Smart Loop instead of setInterval
+        const scanFrame = async () => {
+            if (!isScanningRef.current || !videoRef.current || videoRef.current.readyState !== 4) return;
             
-            const detection = await faceapi.detectSingleFace(videoRef.current).withFaceLandmarks().withFaceDescriptor();
-            
-            // Double check lock after the async promise resolves
-            if (detection && isScanningRef.current) {
-                const match = faceMatcher.findBestMatch(detection.descriptor);
-                if (match.label !== 'unknown') {
-                    // CLOSE THE LOCK IMMEDIATELY
-                    isScanningRef.current = false; 
-                    clearInterval(scanIntervalRef.current);
-                    executePunch(match.label, type);
+            try {
+                // Using TinyFaceDetector with small input size (160) for maximum speed
+                const detection = await faceapi.detectSingleFace(
+                    videoRef.current, 
+                    new faceapi.TinyFaceDetectorOptions({ inputSize: 160 })
+                ).withFaceLandmarks().withFaceDescriptor();
+                
+                if (detection && isScanningRef.current) {
+                    const match = faceMatcher.findBestMatch(detection.descriptor);
+                    if (match.label !== 'unknown') {
+                        isScanningRef.current = false; // Lock immediately
+                        executePunch(match.label, type);
+                        return; // Stop loop
+                    } else {
+                        setStatusMsg("Face not recognized.");
+                    }
                 } else {
-                    setStatusMsg("Face not recognized.");
+                    setStatusMsg("Align face in frame...");
                 }
+            } catch (err) {
+                console.error("Scan error", err);
             }
-        }, 1000);
+
+            // Only queue the next frame if we are still scanning, give tablet 250ms breather
+            if (isScanningRef.current) {
+                scanTimeoutRef.current = setTimeout(scanFrame, 250);
+            }
+        };
+
+        // Kick off the loop after a 1 second delay to let camera warm up
+        scanTimeoutRef.current = setTimeout(scanFrame, 1000);
     };
 
     const executePunch = async (teacherId, type) => {
@@ -185,17 +218,14 @@ export default function TerminalPage() {
             });
             const json = await res.json();
             
-            // Show combined result screen (success or error)
             setScanResult(json);
             setView('result');
             fetchInitialData(); 
             stopCamera();
 
-            // --- AI VOICE ANNOUNCEMENT ---
             if ('speechSynthesis' in window) {
                 let speechText = '';
                 if (json.status === 'success') {
-                    // Grab the first TWO words to include "Mr." or "Ms." plus their first name
                     const spokenName = json.name.split(' ').slice(0, 2).join(' ');
                     speechText = `Punch ${type === 'in' ? 'In' : 'Out'} successful, ${spokenName}.`;
                 } else {
@@ -207,7 +237,6 @@ export default function TerminalPage() {
                 window.speechSynthesis.speak(utterance);
             }
 
-            // Auto-close after 5 seconds hands-free
             setTimeout(() => {
                 setScanResult(null);
                 setView('selection');
@@ -221,8 +250,15 @@ export default function TerminalPage() {
     };
 
     const executeFaceRegistration = async () => {
+        if(!selectedTeacher) return setAlertModal({title:"Missing Info", msg:"Select a teacher first.", type:"warning"});
         setStatusMsg("Capturing mapping data...");
-        const detection = await faceapi.detectSingleFace(videoRef.current).withFaceLandmarks().withFaceDescriptor();
+        
+        // Ensure we use the Tiny detector for registration too, so it matches the live scan format
+        const detection = await faceapi.detectSingleFace(
+            videoRef.current, 
+            new faceapi.TinyFaceDetectorOptions({ inputSize: 160 })
+        ).withFaceLandmarks().withFaceDescriptor();
+
         if (!detection) return setAlertModal({ title: "Failed", msg: "No clear face detected. Ensure lighting is good.", type: "error" });
 
         const descStr = JSON.stringify(Array.from(detection.descriptor));
@@ -256,7 +292,30 @@ export default function TerminalPage() {
 
     const SecurePinModal = () => {
         const [localPin, setLocalPin] = useState('');
+        
+        // New function to verify PIN with backend
+        const verifyActionPin = async (val) => {
+            try {
+                const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/terminal.php`, {
+                    method: 'POST', body: JSON.stringify({ action: 'verify_pin', pin: val })
+                });
+                const json = await res.json();
+                
+                if (json.status === 'success') {
+                    setSecureAction(null); 
+                    secureAction.onConfirm(); 
+                } else {
+                    setAlertModal({title: "Denied", msg: "Incorrect PIN", type:"error"}); 
+                    setLocalPin('');
+                }
+            } catch (error) {
+                setAlertModal({title: "Network Error", msg: "Verification failed.", type:"error"}); 
+                setLocalPin('');
+            }
+        };
+
         if (!secureAction) return null;
+
         return (
             <div className="absolute inset-0 z-[100] bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
                 <motion.div initial={{scale:0.9, opacity:0}} animate={{scale:1, opacity:1}} className="bg-[#0F192E] p-8 rounded-3xl border border-[#1E293B] shadow-2xl text-center w-full max-w-sm">
@@ -269,8 +328,7 @@ export default function TerminalPage() {
                             const val = e.target.value.replace(/\D/g, '');
                             setLocalPin(val);
                             if (val.length === 8) {
-                                if (val === TERMINAL_PIN) { setSecureAction(null); secureAction.onConfirm(); } 
-                                else { setAlertModal({title: "Denied", msg: "Incorrect PIN", type:"error"}); setLocalPin(''); }
+                                verifyActionPin(val); // Calls the backend securely
                             }
                         }}
                         className="w-full bg-[#060B14] border border-[#1E293B] rounded-xl p-4 text-center font-bold tracking-[0.5em] mb-6 outline-none text-xl focus:border-blue-500 text-white" 
@@ -422,7 +480,7 @@ export default function TerminalPage() {
                     </motion.div>
                 )}
 
-                {/* VIEW 3: BIOMETRIC ENROLLMENT */}
+                {/* VIEW 3: BIOMETRIC ENROLLMENT (PIN REQUIRED REMOVED) */}
                 {view === 'enrollment' && (
                     <motion.div key="enrollment" initial={{x:'100%'}} animate={{x:0}} exit={{x:'100%'}} className="flex-1 flex flex-col p-4 max-w-md mx-auto w-full relative z-10 bg-[#090E17]">
                         <div className="flex items-center justify-between mb-4">
@@ -449,20 +507,18 @@ export default function TerminalPage() {
                                 <p className="text-[10px] text-gray-500 uppercase font-bold tracking-widest mb-2">Select Employee</p>
                                 <CustomDropdown />
                             </div>
-                            <button onClick={() => {
-                                if(!selectedTeacher) return setAlertModal({title:"Missing Info", msg:"Select a teacher first.", type:"warning"});
-                                setSecureAction({title: "Authorize Change", desc: "Enter PIN to save biometric data.", onConfirm: executeFaceRegistration});
-                            }} className="w-full bg-blue-600 text-white rounded-xl py-3.5 font-bold flex justify-center items-center gap-2 active:scale-[0.98] transition-transform">
+                            {/* PIN BYPASS: Directly calls executeFaceRegistration */}
+                            <button onClick={executeFaceRegistration} className="w-full bg-blue-600 text-white rounded-xl py-3.5 font-bold flex justify-center items-center gap-2 active:scale-[0.98] transition-transform">
                                 <ScanFace size={18} /> Capture & Save
                             </button>
                         </div>
                     </motion.div>
                 )}
 
-                {/* VIEW 4: PUNCH SELECTION */}
+                {/* VIEW 4: PUNCH SELECTION (ADDED MANUAL OVERRIDE) */}
                 {view === 'selection' && (
-                    <motion.div key="selection" initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} className="flex-1 flex flex-col items-center justify-center p-6 max-w-md mx-auto w-full relative z-10">
-                        <div className="w-full flex justify-between items-center mb-36">
+                    <motion.div key="selection" initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} className="flex-1 flex flex-col items-center p-6 max-w-md mx-auto w-full relative z-10 pt-12">
+                        <div className="w-full flex justify-between items-center mb-16">
                             <div>
                                 <h1 className="text-3xl font-black mb-1">Terminal</h1>
                                 <p className="text-xs text-gray-400 uppercase tracking-widest text-green-500/80">Active Mode</p>
@@ -474,10 +530,47 @@ export default function TerminalPage() {
                             <span className="text-5xl font-black tracking-tighter flex items-center gap-4"><ArrowLeft size={40} className="rotate-180 opacity-80" strokeWidth={4}/> PUNCH IN</span>
                         </button>
 
-                        <button onClick={() => beginLiveScan('out')} className="w-full bg-[#0F192E] border border-red-500/30 text-white rounded-3xl py-8 flex flex-col items-center justify-center active:scale-[0.98] transition-transform">
+                        <button onClick={() => beginLiveScan('out')} className="w-full bg-[#0F192E] border border-red-500/30 text-white rounded-3xl py-8 flex flex-col items-center justify-center mb-8 active:scale-[0.98] transition-transform">
                             <span className="text-2xl font-bold tracking-tighter flex items-center gap-3 text-red-400"><ArrowLeft size={24} className="opacity-80" strokeWidth={3}/> PUNCH OUT</span>
                         </button>
-                        <UTArtsBadge />
+
+                        {/* MANUAL PIN OVERRIDE BUTTON */}
+                        <div className="mt-auto w-full pt-8 border-t border-[#1E293B]">
+                            <button onClick={() => setSecureAction({
+                                title: "Manual Override", 
+                                desc: "Enter Admin PIN to manually mark attendance.", 
+                                onConfirm: () => setView('manual_punch')
+                            })} className="w-full flex items-center justify-center gap-2 text-gray-400 text-sm hover:text-white transition-colors py-3 bg-[#1A2235] rounded-xl border border-[#2D3A54]">
+                                <Keyboard size={18} /> Face recognition not working?
+                            </button>
+                        </div>
+                    </motion.div>
+                )}
+
+                {/* VIEW 4.5: MANUAL PUNCH SCREEN (NEW) */}
+                {view === 'manual_punch' && (
+                    <motion.div key="manual_punch" initial={{opacity:0, scale: 0.95}} animate={{opacity:1, scale: 1}} exit={{opacity:0, scale: 0.95}} className="flex-1 flex flex-col p-6 max-w-md mx-auto w-full relative z-10 justify-center">
+                        <div className="bg-[#0F192E] border border-[#1E293B] rounded-3xl p-6 shadow-2xl relative">
+                            <button onClick={() => setView('selection')} className="absolute top-4 right-4 text-gray-400 hover:text-white bg-[#1A2235] p-2 rounded-full"><X size={16}/></button>
+                            <div className="w-12 h-12 bg-orange-500/20 text-orange-500 rounded-full flex items-center justify-center mb-4"><Keyboard size={24}/></div>
+                            <h2 className="text-xl font-bold mb-1">Manual Override</h2>
+                            <p className="text-xs text-gray-400 mb-6">Select employee to manually log punch time.</p>
+                            
+                            <p className="text-[10px] text-gray-500 uppercase font-bold tracking-widest mb-2">Select Employee</p>
+                            <CustomDropdown />
+
+                            <div className="grid grid-cols-2 gap-3 mt-4">
+                                <button onClick={() => {
+                                    if(!selectedTeacher) return setAlertModal({title:"Missing Info", msg:"Select a teacher first.", type:"warning"});
+                                    executePunch(selectedTeacher, 'in');
+                                }} className="bg-green-600 text-white font-bold py-4 rounded-xl active:scale-95 transition-transform">Punch IN</button>
+                                
+                                <button onClick={() => {
+                                    if(!selectedTeacher) return setAlertModal({title:"Missing Info", msg:"Select a teacher first.", type:"warning"});
+                                    executePunch(selectedTeacher, 'out');
+                                }} className="bg-red-600 text-white font-bold py-4 rounded-xl active:scale-95 transition-transform">Punch OUT</button>
+                            </div>
+                        </div>
                     </motion.div>
                 )}
 
@@ -495,7 +588,7 @@ export default function TerminalPage() {
                         <div className="flex-1 w-full bg-black rounded-[3rem] overflow-hidden relative border border-[#1E293B]">
                             <video ref={videoRef} autoPlay muted playsInline className="w-full h-full object-cover transform -scale-x-100" />
                             <div className="absolute bottom-0 left-0 w-full h-32 bg-gradient-to-t from-black to-transparent z-10"></div>
-                            <div className="absolute top-10 left-10 text-[8px] text-blue-500/50 font-mono tracking-widest z-10">SYS.ON <br/> FRM.RATE: 30 <br/> LCK.ST: SECURE</div>
+                            <div className="absolute top-10 left-10 text-[8px] text-blue-500/50 font-mono tracking-widest z-10">SYS.ON <br/> FRM.RATE: OPTIMIZED <br/> LCK.ST: SECURE</div>
                             <div className={`absolute top-0 left-0 w-full h-full border-t-2 animate-[scan_2s_ease-in-out_infinite] z-20 pointer-events-none ${scanType === 'in' ? 'border-green-500 bg-gradient-to-b from-green-500/10 to-transparent' : 'border-red-500 bg-gradient-to-b from-red-500/10 to-transparent'}`}></div>
                             
                             <div className="absolute bottom-10 left-1/2 -translate-x-1/2 bg-[#0F192E]/80 backdrop-blur-md border border-blue-500/30 px-6 py-3 rounded-full z-20 flex items-center gap-3">
@@ -511,7 +604,7 @@ export default function TerminalPage() {
                     <motion.div key="result" initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} className="absolute inset-0 z-50 flex flex-col items-center justify-center p-6 bg-black/90 backdrop-blur-md">
                         <motion.div initial={{scale:0.9, y:20}} animate={{scale:1, y:0}} className={`bg-[#0F192E] border w-full max-w-sm rounded-[2rem] p-8 text-center relative overflow-hidden ${scanResult.status === 'success' ? 'border-green-500/30 shadow-[0_0_50px_rgba(34,197,94,0.15)]' : 'border-red-500/30 shadow-[0_0_50px_rgba(239,68,68,0.15)]'}`}>
                             
-                            <div className="absolute top-4 left-4 bg-blue-600 text-[8px] font-bold uppercase px-2 py-1 rounded flex items-center gap-1"><Shield size={10}/> BIOAUTH</div>
+                            <div className="absolute top-4 left-4 bg-blue-600 text-[8px] font-bold uppercase px-2 py-1 rounded flex items-center gap-1"><Shield size={10}/> TERMINAL</div>
 
                             <div className={`w-24 h-24 rounded-full flex items-center justify-center mx-auto mt-8 mb-6 ${scanResult.status === 'success' ? 'bg-green-500 shadow-[0_0_30px_rgba(34,197,94,0.4)]' : 'bg-red-500 shadow-[0_0_30px_rgba(239,68,68,0.4)]'}`}>
                                 {scanResult.status === 'success' ? <Check size={48} className="text-white" strokeWidth={3} /> : <X size={48} className="text-white" strokeWidth={3} />}
@@ -522,7 +615,7 @@ export default function TerminalPage() {
                             </p>
                             
                             <h2 className="text-2xl font-black text-white mb-1">
-                                {scanResult.status === 'success' ? scanResult.name : 'Record Exists'}
+                                {scanResult.status === 'success' ? scanResult.name : 'Record Error'}
                             </h2>
                             
                             <p className="text-[10px] text-gray-500 uppercase tracking-widest mb-8">

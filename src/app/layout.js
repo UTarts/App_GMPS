@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState, Suspense } from "react"; // ADDED MISSING IMPORTS
 import "./globals.css";
 import AppBottomNav from "../components/AppBottomNav"; 
 
@@ -14,20 +15,26 @@ import { ModalProvider } from "../context/ModalContext";
 import useFcmToken from "../hooks/useFcmToken";
 import NotificationManager from "../components/NotificationManager";
 import { SessionProvider } from "../context/SessionContext";
+import NotificationToast from "../components/NotificationToast";
+import NotificationSidebar from "../components/NotificationSidebar"; // ADDED MISSING IMPORT
 
-import { Suspense } from "react";
 function FcmHandler() {
   useFcmToken();
   return null; 
 }
+
 export default function RootLayout({ children }) {
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+
   useEffect(() => {
-    if ('clearAppBadge' in navigator) {
+    // Clear badge when app is opened
+    if (typeof navigator !== 'undefined' && 'clearAppBadge' in navigator) {
       navigator.clearAppBadge().catch((error) => {
         console.error('Failed to clear app badge:', error);
       });
     }
   }, []);
+
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
@@ -35,7 +42,7 @@ export default function RootLayout({ children }) {
         <meta name="theme-color" content="#4f46e5" />
         {/* CRITICAL: HIDE FROM SEARCH ENGINES */}
         <meta name="robots" content="noindex, nofollow" />
-        {/* APPLE PWA TAGS (Required for better installability check) */}
+        {/* APPLE PWA TAGS */}
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
       </head>
@@ -46,6 +53,11 @@ export default function RootLayout({ children }) {
             <ThemeProvider>
               <ModalProvider>
                 <NetworkStatus />
+                
+                {/* NOTIFICATION MODULES */}
+                <NotificationToast onOpenSidebar={() => setIsSidebarOpen(true)} />
+                <NotificationSidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
+                
                 <NotificationManager />
                 <FcmHandler />
                 <RouteGuard>

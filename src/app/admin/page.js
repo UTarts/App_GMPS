@@ -6,9 +6,10 @@ import { useAppModal } from "../../context/ModalContext";
 import { 
     Users, BookOpen, UserCheck, Shield, Mail, Trash2, Edit3, 
     Search, Plus, X, Save, Calendar, Award, CheckCircle2, AlertCircle, Loader2, ChevronDown, Camera,
-    ArrowLeft, LayoutGrid, GraduationCap, School, LogOut, Printer 
+    ArrowLeft, LayoutGrid, GraduationCap, School, LogOut, Printer, Settings 
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import Link from 'next/link';
 
 // --- BULLETPROOF JSON PARSER ---
 const safeFetchJson = async (url, options = {}) => {
@@ -294,9 +295,9 @@ export default function AdminProfile() {
             {dashboardView ? (
                 <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
                     <div className="relative pt-12 pb-10 px-6 flex flex-col items-center justify-center">
-                        <button onClick={handleLogout} className="absolute top-6 right-6 p-2 rounded-full bg-red-50 text-red-500 dark:bg-red-900/20 hover:bg-red-100 dark:hover:bg-red-900/40 transition-colors">
-                            <LogOut size={20} />
-                        </button>
+                    <Link href="/settings" className="absolute top-6 right-6 p-2 rounded-full bg-red-50 text-red-500 dark:bg-red-900/20 hover:bg-red-100 dark:hover:bg-red-900/40 transition-colors">
+                        <Settings size={20} />
+                    </Link>
 
                         <div className="absolute top-6 left-6">
                             <span className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border shadow-lg backdrop-blur-md ${isSuperAdmin ? 'bg-amber-500/20 border-amber-500 text-amber-600 dark:text-amber-500' : 'bg-indigo-500/20 border-indigo-500 text-indigo-600 dark:text-indigo-400'}`}>

@@ -1,24 +1,25 @@
 "use client";
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from "../../context/AuthContext";
 import { 
-  ChevronLeft, Moon, Sun, LogOut, Info, Shield, 
-  Phone, Mail, MapPin, UserPlus, Users, Check, X, Loader2, School, ChevronDown, ExternalLink 
+  ChevronLeft, LogOut, Info, Shield, 
+  Phone, Mail, UserPlus, Users, Check, X, Loader2, ChevronDown, ExternalLink 
 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export default function Settings() {
-  const { logout, user, accounts, switchAccount, addStudentAccount } = useAuth();
+  const { logout, user, accounts, switchAccount, addAccount } = useAuth(); // USING NEW addAccount
   const router = useRouter();
   
   // Modals State
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [showAccountModal, setShowAccountModal] = useState(false);
-  const [isAddingNew, setIsAddingNew] = useState(false); // Toggle between List vs Login Form
+  const [isAddingNew, setIsAddingNew] = useState(false);
 
   // Login Form State
+  const [selectedRole, setSelectedRole] = useState('student'); // NEW ROLE STATE
   const [loginId, setLoginId] = useState('');
   const [password, setPassword] = useState('');
   const [classId, setClassId] = useState('');
@@ -32,31 +33,32 @@ export default function Settings() {
     contacts: { phone: "+919415039082", email: "contact@govindmadhav.com" }
   };
 
-  // Fetch Classes for Dropdown (Only when adding new user)
+  // Fetch Classes for Dropdown (Only when adding new student)
   useEffect(() => {
-    if (isAddingNew && classes.length === 0) {
+    if (isAddingNew && selectedRole === 'student' && classes.length === 0) {
         fetch(`${process.env.NEXT_PUBLIC_API_URL}/classes.php`)
             .then(res => res.json())
             .then(data => { if(Array.isArray(data)) setClasses(data); })
             .catch(err => console.error(err));
     }
-  }, [isAddingNew]);
+  }, [isAddingNew, selectedRole]);
 
   const confirmLogout = () => {
     logout();
     router.replace('/login');
   };
 
-  const handleAddStudentSubmit = async (e) => {
+  const handleAddSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
     setError('');
     
-    const res = await addStudentAccount(loginId, password, classId);
+    // Call the new generic addAccount function
+    const res = await addAccount(loginId, password, selectedRole, selectedRole === 'student' ? classId : null);
     
     if (res.success) {
-        setShowAccountModal(false); // Close Modal
-        setIsAddingNew(false); // Reset Form
+        setShowAccountModal(false);
+        setIsAddingNew(false);
         setLoginId(''); setPassword(''); setClassId('');
     } else {
         setError(res.message);
@@ -64,7 +66,6 @@ export default function Settings() {
     setLoading(false);
   };
 
-  // Helper for Dropdown Label
   const selectedClassName = classes.find(c => c.id == classId)?.name || "Select Class";
 
   return (
@@ -72,9 +73,9 @@ export default function Settings() {
       
       {/* --- HEADER --- */}
       <div className="sticky top-0 z-40 bg-white/90 dark:bg-black/90 backdrop-blur-md border-b border-gray-200 dark:border-gray-800 p-4 flex items-center gap-3">
-        <Link href="/profile" className="p-2 -ml-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 active:scale-95 transition-transform">
-          <ChevronLeft size={24} className="text-gray-700 dark:text-gray-200" />
-        </Link>
+        <button onClick={() => router.back()} className="p-2 -ml-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 active:scale-95 transition-transform">
+            <ChevronLeft size={24} className="text-gray-700 dark:text-gray-200" />
+        </button>
         <h1 className="text-xl font-bold tracking-tight">Settings</h1>
       </div>
 
@@ -94,14 +95,13 @@ export default function Settings() {
                         <p className="text-xs text-gray-500">Data safety & usage</p>
                     </div>
                 </Link>
-
                 <div className="flex items-center gap-4 p-4 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
                     <div className="bg-purple-100 dark:bg-purple-900/30 p-2.5 rounded-full text-purple-600 dark:text-purple-400">
                         <Info size={20} />
                     </div>
                     <div className="flex-1">
                         <h3 className="font-semibold text-sm">App Version</h3>
-                        <p className="text-xs text-gray-500">v1.0.0 (Release)</p>
+                        <p className="text-xs text-gray-500">v1.0.2</p>
                     </div>
                 </div>
             </div>
@@ -109,7 +109,7 @@ export default function Settings() {
 
         {/* SECTION 2: ACCOUNTS */}
         <div>
-            <h2 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3 ml-1">Family & Accounts</h2>
+            <h2 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3 ml-1">Profiles & Accounts</h2>
             <div className="bg-white dark:bg-[#151515] rounded-2xl overflow-hidden border border-gray-100 dark:border-gray-800 shadow-sm">
                 <button 
                     onClick={() => { setShowAccountModal(true); setIsAddingNew(false); }}
@@ -121,10 +121,9 @@ export default function Settings() {
                     <div className="flex-1">
                         <h3 className="font-semibold text-sm text-gray-900 dark:text-white">Switch Accounts</h3>
                         <p className="text-xs text-gray-500">
-                            {accounts.length > 1 ? `${accounts.length} Profiles Active` : 'Add another child profile'}
+                            {accounts.length > 1 ? `${accounts.length} Profiles Active` : 'Add another profile'}
                         </p>
                     </div>
-                    {/* Tiny avatars preview */}
                     <div className="flex -space-x-2 mr-2">
                          {accounts.slice(0,3).map((acc, i) => (
                              <img key={i} src={`${process.env.NEXT_PUBLIC_IMAGE_BASE_URL}${acc.pic || 'GMPSimages/default_student.png'}`} className="w-6 h-6 rounded-full border border-white dark:border-gray-800" />
@@ -152,7 +151,6 @@ export default function Settings() {
                 </button>
             </div>
         </div>
-
       </div>
 
       {/* --- FOOTER --- */}
@@ -175,19 +173,9 @@ export default function Settings() {
          </div>
          <span className="flex items-center text-xs justify-center gap-2 pb-12">
               Designed & Developed by
-              <a 
-                href="https://www.utarts.in" 
-                target="_blank" 
-                rel="noopener noreferrer"
-                className="font-bold text-blue-600 hover:text-blue-700 transition-colors flex items-center gap-1.5"
-              >
-                <img 
-                  src="https://www.utarts.in/images/UTArt_Logo.webp" 
-                  alt="UT Arts Logo" 
-                  className="h-6 w-6 rounded-full object-cover border border-gray-200"
-                />
-                UT Arts
-                <ExternalLink size={10} />
+              <a href="https://www.utarts.in" target="_blank" rel="noopener noreferrer" className="font-bold text-blue-600 hover:text-blue-700 transition-colors flex items-center gap-1.5">
+                <img src="https://www.utarts.in/images/UTArt_Logo.webp" alt="UT Arts Logo" className="h-6 w-6 rounded-full object-cover border border-gray-200" />
+                UT Arts <ExternalLink size={10} />
               </a>
             </span>
       </div>
@@ -220,7 +208,7 @@ export default function Settings() {
                  {/* MODAL HEADER */}
                  <div className="flex justify-between items-center mb-6">
                     <h3 className="text-lg font-bold text-gray-900 dark:text-white">
-                        {isAddingNew ? "Add Student" : "Switch Profile"}
+                        {isAddingNew ? "Add Profile" : "Switch Profile"}
                     </h3>
                     <button onClick={() => setShowAccountModal(false)} className="p-2 bg-gray-100 dark:bg-gray-800 rounded-full"><X size={20} /></button>
                  </div>
@@ -229,49 +217,60 @@ export default function Settings() {
                  {!isAddingNew ? (
                     <div className="space-y-4">
                         {accounts.map((acc, index) => (
-                           <div key={index} 
-                                onClick={() => switchAccount(index)}
-                                className={`flex items-center gap-4 p-3 rounded-2xl border transition-all cursor-pointer ${
-                                    user.id === acc.id ? 'bg-blue-50 border-blue-200 ring-1 ring-blue-500' : 'bg-gray-50 dark:bg-gray-800/50 border-transparent hover:bg-gray-100'
-                                }`}
-                           >
+                           <div key={index} onClick={() => switchAccount(index)} className={`flex items-center gap-4 p-3 rounded-2xl border transition-all cursor-pointer ${user.id === acc.id ? 'bg-blue-50 border-blue-200 ring-1 ring-blue-500' : 'bg-gray-50 dark:bg-gray-800/50 border-transparent hover:bg-gray-100'}`}>
                                <img src={`${process.env.NEXT_PUBLIC_IMAGE_BASE_URL}${acc.pic || 'GMPSimages/default_student.png'}`} className="w-12 h-12 rounded-full object-cover" />
                                <div className="flex-1">
                                    <h4 className="font-bold text-sm text-gray-900 dark:text-white">{acc.name}</h4>
-                                   <p className="text-xs text-gray-500">{acc.role === 'student' ? 'Student' : 'Staff'}</p>
+                                   <p className="text-xs text-gray-500 capitalize">{acc.role}</p>
                                </div>
                                {user.id === acc.id && <div className="bg-blue-500 text-white p-1 rounded-full"><Check size={14} /></div>}
                            </div>
                         ))}
                         
                         <button onClick={() => setIsAddingNew(true)} className="w-full py-4 mt-2 border-2 border-dashed border-gray-200 dark:border-gray-700 rounded-2xl flex items-center justify-center gap-2 text-gray-500 font-bold text-sm hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
-                            <UserPlus size={18} /> Add New Student
+                            <UserPlus size={18} /> Add New Profile
                         </button>
                     </div>
                  ) : (
                     
                  /* --- VIEW 2: LOGIN FORM --- */
-                    <form onSubmit={handleAddStudentSubmit} className="space-y-4">
+                    <form onSubmit={handleAddSubmit} className="space-y-4">
+                        
+                        {/* ROLE SELECTOR TABS */}
+                        <div className="flex bg-gray-100 dark:bg-gray-800 p-1 rounded-xl mb-4">
+                            {['student', 'teacher', 'admin'].map(role => (
+                                <button 
+                                    key={role} type="button" 
+                                    onClick={() => setSelectedRole(role)}
+                                    className={`flex-1 py-2 text-xs font-bold rounded-lg capitalize transition-all ${selectedRole === role ? 'bg-white dark:bg-[#2a2a2a] shadow-sm text-blue-600 dark:text-blue-400' : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'}`}
+                                >
+                                    {role}
+                                </button>
+                            ))}
+                        </div>
+
                         <div className="space-y-1">
-                            <label className="text-xs font-bold text-gray-400 ml-1">Student ID</label>
+                            <label className="text-xs font-bold text-gray-400 ml-1">User ID</label>
                             <input type="text" value={loginId} onChange={(e) => setLoginId(e.target.value)} className="w-full p-3 bg-gray-50 dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 outline-none focus:ring-2 focus:ring-blue-500" placeholder="Enter ID" required />
                         </div>
 
-                        {/* Class Dropdown */}
-                        <div className="space-y-1 relative">
-                            <label className="text-xs font-bold text-gray-400 ml-1">Class</label>
-                            <div onClick={() => setIsClassDropdownOpen(!isClassDropdownOpen)} className="w-full p-3 bg-gray-50 dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 flex justify-between items-center cursor-pointer">
-                                <span className="text-sm font-medium">{selectedClassName}</span>
-                                <ChevronDown size={16} />
-                            </div>
-                            {isClassDropdownOpen && (
-                                <div className="absolute top-full left-0 right-0 mt-2 bg-white dark:bg-[#222] border border-gray-100 dark:border-gray-700 rounded-xl shadow-xl z-50 max-h-40 overflow-y-auto">
-                                    {classes.map(c => (
-                                        <div key={c.id} onClick={() => { setClassId(c.id); setIsClassDropdownOpen(false); }} className="p-3 text-sm hover:bg-blue-50 dark:hover:bg-gray-700 cursor-pointer">{c.name}</div>
-                                    ))}
+                        {/* Class Dropdown - ONLY SHOW IF STUDENT */}
+                        {selectedRole === 'student' && (
+                            <div className="space-y-1 relative">
+                                <label className="text-xs font-bold text-gray-400 ml-1">Class</label>
+                                <div onClick={() => setIsClassDropdownOpen(!isClassDropdownOpen)} className="w-full p-3 bg-gray-50 dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 flex justify-between items-center cursor-pointer">
+                                    <span className="text-sm font-medium">{selectedClassName}</span>
+                                    <ChevronDown size={16} />
                                 </div>
-                            )}
-                        </div>
+                                {isClassDropdownOpen && (
+                                    <div className="absolute top-full left-0 right-0 mt-2 bg-white dark:bg-[#222] border border-gray-100 dark:border-gray-700 rounded-xl shadow-xl z-50 max-h-40 overflow-y-auto">
+                                        {classes.map(c => (
+                                            <div key={c.id} onClick={() => { setClassId(c.id); setIsClassDropdownOpen(false); }} className="p-3 text-sm hover:bg-blue-50 dark:hover:bg-gray-700 cursor-pointer">{c.name}</div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        )}
 
                         <div className="space-y-1">
                             <label className="text-xs font-bold text-gray-400 ml-1">Password</label>
@@ -283,7 +282,7 @@ export default function Settings() {
                         <div className="pt-2 flex gap-3">
                             <button type="button" onClick={() => setIsAddingNew(false)} className="flex-1 py-3 bg-gray-100 dark:bg-gray-800 rounded-xl font-bold text-sm">Back</button>
                             <button type="submit" disabled={loading} className="flex-1 py-3 bg-blue-600 text-white rounded-xl font-bold text-sm flex justify-center items-center gap-2">
-                                {loading ? <Loader2 className="animate-spin" size={18} /> : "Add Account"}
+                                {loading ? <Loader2 className="animate-spin" size={18} /> : "Add Profile"}
                             </button>
                         </div>
                     </form>

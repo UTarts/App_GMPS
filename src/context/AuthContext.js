@@ -112,6 +112,44 @@ export function AuthProvider({ children }) {
     }
   };
 
+  // 3.5 Add Generic Account (For Teachers/Admins/Students)
+  const addAccount = async (userid, password, role, class_id = null) => {
+    try {
+      const payload = { userid, password, role };
+      if (role === 'student') payload.class_id = class_id;
+      
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/login.php`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await res.json();
+
+      if (data.status === 'success') {
+        const newUser = { ...data.user, role };
+        
+        // Check duplicates
+        const exists = accounts.some(acc => acc.id === newUser.id && acc.role === role);
+        if (exists) return { success: false, message: "Profile already added." };
+
+        // Append and Save
+        const updatedAccounts = [...accounts, newUser];
+        setAccounts(updatedAccounts);
+        localStorage.setItem('gmps_family_accounts', JSON.stringify(updatedAccounts));
+        
+        // Auto-switch to new user
+        switchAccount(updatedAccounts.length - 1);
+        
+        return { success: true };
+      } else {
+        return { success: false, message: data.message || "Invalid credentials" };
+      }
+    } catch (error) {
+      return { success: false, message: "Network Error" };
+    }
+  };
+
   // 4. Switch Account (UPDATED)
   const switchAccount = (index) => {
     if (!accounts[index]) return;

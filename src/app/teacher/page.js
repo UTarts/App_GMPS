@@ -11,8 +11,9 @@ import {
   BookOpen, CheckSquare, BarChart2, Award, FileText, Upload,
   Users, ChevronDown, ChevronUp, Image as ImageIcon, X,
   AlertCircle, CheckCircle, Clock, Phone, Hash, Layers, 
-  Search, ArrowLeft, MoreVertical, Edit3, MapPin, Printer, ChevronRight
+  Search, ArrowLeft, MoreVertical, Edit3, MapPin, Printer, ChevronRight, Settings 
 } from 'lucide-react';
+import Link from 'next/link';
 
 // --- CUSTOM APP-STYLE DROPDOWN COMPONENT ---
 function CustomSelect({ options, value, onChange, placeholder, allowManual = false }) {
@@ -138,12 +139,9 @@ export default function TeacherPage() {
     const Header = () => (
         <div className="sticky top-0 z-40 bg-white/90 dark:bg-black/90 backdrop-blur-md border-b border-gray-200 dark:border-gray-800 px-5 py-4 flex justify-between items-center shadow-sm">
             <h1 className="text-xl font-bold text-gray-900 dark:text-white tracking-tight">Teacher Profile</h1>
-            <button 
-                onClick={handleLogout} 
-                className="flex items-center gap-2 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 px-3 py-1.5 rounded-full text-xs font-bold transition-colors hover:bg-red-100 dark:hover:bg-red-900/30"
-            >
-                <LogOut size={14} /> Logout
-            </button>
+            <Link href="/settings" className="p-2 bg-white/50 dark:bg-black/50 hover:bg-white dark:hover:bg-gray-800 rounded-full backdrop-blur-md transition-all shadow-sm border border-gray-100 dark:border-gray-800 text-gray-700 dark:text-gray-300">
+                <Settings size={20} />
+            </Link>
         </div>
     );
 
