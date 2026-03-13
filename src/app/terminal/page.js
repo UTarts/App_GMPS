@@ -166,29 +166,53 @@ export default function TerminalPage() {
             return;
         }
 
-        const faceMatcher = new faceapi.FaceMatcher(labeledDescriptors, 0.45);
+        // STRICTER MATCHING: Lowered threshold from 0.45 to 0.40
+        const faceMatcher = new faceapi.FaceMatcher(labeledDescriptors, 0.40);
         setStatusMsg("Analyzing biometrics...");
         isScanningRef.current = true;
+
+        // TRIPLE-CHECK VARIABLES
+        let consecutiveMatches = 0;
+        let lastMatchLabel = null;
 
         const scanFrame = async () => {
             if (!isScanningRef.current || !videoRef.current || videoRef.current.readyState !== 4) return;
             
             try {
+                // UPGRADED VISION: inputSize changed from 160 to 320
                 const detection = await faceapi.detectSingleFace(
                     videoRef.current, 
-                    new faceapi.TinyFaceDetectorOptions({ inputSize: 160 })
+                    new faceapi.TinyFaceDetectorOptions({ inputSize: 320 })
                 ).withFaceLandmarks().withFaceDescriptor();
                 
                 if (detection && isScanningRef.current) {
                     const match = faceMatcher.findBestMatch(detection.descriptor);
+                    
                     if (match.label !== 'unknown') {
-                        isScanningRef.current = false; 
-                        executePunch(match.label, type);
-                        return; 
+                        // TRIPLE-CHECK LOGIC
+                        if (lastMatchLabel === match.label) {
+                            consecutiveMatches++;
+                        } else {
+                            lastMatchLabel = match.label;
+                            consecutiveMatches = 1;
+                        }
+
+                        if (consecutiveMatches >= 3) {
+                            isScanningRef.current = false; 
+                            executePunch(match.label, type);
+                            return; 
+                        } else {
+                            // Visual feedback for the teacher to hold still
+                            setStatusMsg(`Hold Still... ${consecutiveMatches}/3`);
+                        }
                     } else {
-                        setStatusMsg("Face not recognized.");
+                        consecutiveMatches = 0;
+                        lastMatchLabel = null;
+                        setStatusMsg("Face not recognized. Move closer.");
                     }
                 } else {
+                    consecutiveMatches = 0;
+                    lastMatchLabel = null;
                     setStatusMsg("Align face in frame...");
                 }
             } catch (err) {
@@ -264,7 +288,7 @@ export default function TerminalPage() {
         
         const detection = await faceapi.detectSingleFace(
             videoRef.current, 
-            new faceapi.TinyFaceDetectorOptions({ inputSize: 160 })
+            new faceapi.TinyFaceDetectorOptions({ inputSize: 320 })
         ).withFaceLandmarks().withFaceDescriptor();
 
         if (!detection) return setAlertModal({ title: "Failed", msg: "No clear face detected. Ensure lighting is good.", type: "error" });
@@ -593,16 +617,27 @@ export default function TerminalPage() {
                             <button onClick={() => setSecureAction({title:"Stop Camera", desc:"Enter PIN to abort scan and exit.", onConfirm: () => {stopCamera(); setView('selection');}})} className="p-2 bg-red-500/10 text-red-500 rounded-full border border-red-500/30"><X size={16}/></button>
                         </div>
 
-                        <div className="flex-1 w-full bg-black rounded-[3rem] overflow-hidden relative border border-[#1E293B]">
+                        {/* We use the same aspect-square ratio and targeting brackets as the enrollment screen */}
+                        <div className="relative w-full max-h-[50vh] aspect-square mx-auto bg-black rounded-[3rem] overflow-hidden border border-[#1E293B] mt-4 shadow-2xl">
                             <video ref={videoRef} autoPlay muted playsInline className="w-full h-full object-cover transform -scale-x-100" />
-                            <div className="absolute bottom-0 left-0 w-full h-32 bg-gradient-to-t from-black to-transparent z-10"></div>
-                            <div className="absolute top-10 left-10 text-[8px] text-blue-500/50 font-mono tracking-widest z-10">SYS.ON <br/> FRM.RATE: OPTIMIZED <br/> LCK.ST: SECURE</div>
+                            
+                            {/* HUD Targeting Brackets */}
+                            <div className="absolute inset-8 border-2 border-blue-500/20 rounded-3xl pointer-events-none"></div>
+                            <div className="absolute top-8 left-8 w-8 h-8 border-t-4 border-l-4 border-blue-500 rounded-tl-2xl pointer-events-none"></div>
+                            <div className="absolute top-8 right-8 w-8 h-8 border-t-4 border-r-4 border-blue-500 rounded-tr-2xl pointer-events-none"></div>
+                            <div className="absolute bottom-8 left-8 w-8 h-8 border-b-4 border-l-4 border-blue-500 rounded-bl-2xl pointer-events-none"></div>
+                            <div className="absolute bottom-8 right-8 w-8 h-8 border-b-4 border-r-4 border-blue-500 rounded-br-2xl pointer-events-none"></div>
+                            
+                            {/* Original Sweeping Scan Line */}
                             <div className={`absolute top-0 left-0 w-full h-full border-t-2 animate-[scan_2s_ease-in-out_infinite] z-20 pointer-events-none ${scanType === 'in' ? 'border-green-500 bg-gradient-to-b from-green-500/10 to-transparent' : 'border-red-500 bg-gradient-to-b from-red-500/10 to-transparent'}`}></div>
                             
-                            <div className="absolute bottom-10 left-1/2 -translate-x-1/2 bg-[#0F192E]/80 backdrop-blur-md border border-blue-500/30 px-6 py-3 rounded-full z-20 flex items-center gap-3">
-                                <ScanFace size={18} className="text-blue-400 animate-pulse" />
-                                <span className="text-[10px] font-bold text-blue-400 uppercase tracking-widest whitespace-nowrap">{statusMsg}</span>
-                            </div>
+                            <div className="absolute top-6 left-6 text-[8px] text-blue-500/50 font-mono tracking-widest z-10 pointer-events-none">SYS.ON <br/> FRM.RATE: OPTIMIZED <br/> LCK.ST: SECURE</div>
+                        </div>
+                        
+                        {/* Status Message moved below the camera to keep the UI clean */}
+                        <div className="mt-8 mx-auto bg-[#0F192E]/90 backdrop-blur-md border border-blue-500/30 px-8 py-4 rounded-full z-20 flex items-center gap-3">
+                            <ScanFace size={20} className="text-blue-400 animate-pulse" />
+                            <span className="text-xs font-bold text-blue-400 uppercase tracking-widest whitespace-nowrap">{statusMsg}</span>
                         </div>
                     </motion.div>
                 )}
