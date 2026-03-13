@@ -24,7 +24,7 @@ export default function TerminalPage() {
 
     const videoRef = useRef(null);
     const streamRef = useRef(null);
-    const scanTimeoutRef = useRef(null); // Changed from Interval to Timeout
+    const scanTimeoutRef = useRef(null); 
     const isScanningRef = useRef(false); 
 
     // --- ANTI-BACK BUTTON & HISTORY TRAP ---
@@ -60,7 +60,6 @@ export default function TerminalPage() {
 
     const handleLogin = async (val) => {
         try {
-            // Send the PIN to the server for verification
             const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/terminal.php`, {
                 method: 'POST',
                 body: JSON.stringify({ action: 'verify_pin', pin: val })
@@ -111,7 +110,6 @@ export default function TerminalPage() {
 
     const loadModels = async () => {
         try {
-            // SWITCHED TO TINY FACE DETECTOR FOR 99% LIGHTER LOAD
             await Promise.all([
                 faceapi.nets.tinyFaceDetector.loadFromUri('/models'), 
                 faceapi.nets.faceLandmark68Net.loadFromUri('/models'),
@@ -131,7 +129,6 @@ export default function TerminalPage() {
     const startCamera = async () => {
         setStatusMsg("Initializing Hardware...");
         try {
-            // FORCED LOW RESOLUTION TO SAVE RAM AND CPU
             const stream = await navigator.mediaDevices.getUserMedia({ 
                 video: { 
                     facingMode: "user",
@@ -173,12 +170,10 @@ export default function TerminalPage() {
         setStatusMsg("Analyzing biometrics...");
         isScanningRef.current = true;
 
-        // Recursive Smart Loop instead of setInterval
         const scanFrame = async () => {
             if (!isScanningRef.current || !videoRef.current || videoRef.current.readyState !== 4) return;
             
             try {
-                // Using TinyFaceDetector with small input size (160) for maximum speed
                 const detection = await faceapi.detectSingleFace(
                     videoRef.current, 
                     new faceapi.TinyFaceDetectorOptions({ inputSize: 160 })
@@ -187,9 +182,9 @@ export default function TerminalPage() {
                 if (detection && isScanningRef.current) {
                     const match = faceMatcher.findBestMatch(detection.descriptor);
                     if (match.label !== 'unknown') {
-                        isScanningRef.current = false; // Lock immediately
+                        isScanningRef.current = false; 
                         executePunch(match.label, type);
-                        return; // Stop loop
+                        return; 
                     } else {
                         setStatusMsg("Face not recognized.");
                     }
@@ -200,13 +195,11 @@ export default function TerminalPage() {
                 console.error("Scan error", err);
             }
 
-            // Only queue the next frame if we are still scanning, give tablet 250ms breather
             if (isScanningRef.current) {
                 scanTimeoutRef.current = setTimeout(scanFrame, 250);
             }
         };
 
-        // Kick off the loop after a 1 second delay to let camera warm up
         scanTimeoutRef.current = setTimeout(scanFrame, 1000);
     };
 
@@ -223,19 +216,35 @@ export default function TerminalPage() {
             fetchInitialData(); 
             stopCamera();
 
-            if ('speechSynthesis' in window) {
-                let speechText = '';
-                if (json.status === 'success') {
-                    const spokenName = json.name.split(' ').slice(0, 2).join(' ');
-                    speechText = `Punch ${type === 'in' ? 'In' : 'Out'} successful, ${spokenName}.`;
-                } else {
-                    speechText = `Punch Denied. ${json.message}`;
-                }
-                const utterance = new SpeechSynthesisUtterance(speechText);
-                utterance.rate = 1.0; 
-                utterance.pitch = 1.1; 
-                window.speechSynthesis.speak(utterance);
+            // --- HYBRID SPEECH BRIDGE ---
+            let speechText = '';
+            if (json.status === 'success') {
+                const spokenName = json.name.split(' ').slice(0, 2).join(' ');
+                speechText = `Punch ${type === 'in' ? 'In' : 'Out'} successful, ${spokenName}.`;
+            } else {
+                speechText = `Punch Denied. ${json.message || ''}`;
             }
+
+            // 500ms breather for the 2GB RAM tablet
+            setTimeout(() => {
+                // 1. Primary Fallback (Google TTS Audio stream)
+                const url = "https://translate.google.com/translate_tts?ie=UTF-8&q=" + 
+                            encodeURIComponent(speechText) + 
+                            "&tl=en&client=tw-ob";
+                const audio = new Audio(url);
+                
+                audio.play().catch(e => {
+                    console.log("Audio stream blocked or offline, trying offline synthesis...");
+                    // 2. Offline Backup (Standard Webview Speech API)
+                    if ('speechSynthesis' in window) {
+                        const utterance = new SpeechSynthesisUtterance(speechText);
+                        utterance.rate = 1.0; 
+                        utterance.pitch = 1.1; 
+                        window.speechSynthesis.speak(utterance);
+                    }
+                });
+            }, 500);
+            // --- END HYBRID SPEECH BRIDGE ---
 
             setTimeout(() => {
                 setScanResult(null);
@@ -253,7 +262,6 @@ export default function TerminalPage() {
         if(!selectedTeacher) return setAlertModal({title:"Missing Info", msg:"Select a teacher first.", type:"warning"});
         setStatusMsg("Capturing mapping data...");
         
-        // Ensure we use the Tiny detector for registration too, so it matches the live scan format
         const detection = await faceapi.detectSingleFace(
             videoRef.current, 
             new faceapi.TinyFaceDetectorOptions({ inputSize: 160 })
@@ -293,7 +301,6 @@ export default function TerminalPage() {
     const SecurePinModal = () => {
         const [localPin, setLocalPin] = useState('');
         
-        // New function to verify PIN with backend
         const verifyActionPin = async (val) => {
             try {
                 const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/terminal.php`, {
@@ -328,7 +335,7 @@ export default function TerminalPage() {
                             const val = e.target.value.replace(/\D/g, '');
                             setLocalPin(val);
                             if (val.length === 8) {
-                                verifyActionPin(val); // Calls the backend securely
+                                verifyActionPin(val); 
                             }
                         }}
                         className="w-full bg-[#060B14] border border-[#1E293B] rounded-xl p-4 text-center font-bold tracking-[0.5em] mb-6 outline-none text-xl focus:border-blue-500 text-white" 
@@ -480,7 +487,7 @@ export default function TerminalPage() {
                     </motion.div>
                 )}
 
-                {/* VIEW 3: BIOMETRIC ENROLLMENT (PIN REQUIRED REMOVED) */}
+                {/* VIEW 3: BIOMETRIC ENROLLMENT */}
                 {view === 'enrollment' && (
                     <motion.div key="enrollment" initial={{x:'100%'}} animate={{x:0}} exit={{x:'100%'}} className="flex-1 flex flex-col p-4 max-w-md mx-auto w-full relative z-10 bg-[#090E17]">
                         <div className="flex items-center justify-between mb-4">
@@ -507,7 +514,6 @@ export default function TerminalPage() {
                                 <p className="text-[10px] text-gray-500 uppercase font-bold tracking-widest mb-2">Select Employee</p>
                                 <CustomDropdown />
                             </div>
-                            {/* PIN BYPASS: Directly calls executeFaceRegistration */}
                             <button onClick={executeFaceRegistration} className="w-full bg-blue-600 text-white rounded-xl py-3.5 font-bold flex justify-center items-center gap-2 active:scale-[0.98] transition-transform">
                                 <ScanFace size={18} /> Capture & Save
                             </button>
@@ -515,39 +521,41 @@ export default function TerminalPage() {
                     </motion.div>
                 )}
 
-                {/* VIEW 4: PUNCH SELECTION (ADDED MANUAL OVERRIDE) */}
+                {/* VIEW 4: PUNCH SELECTION */}
                 {view === 'selection' && (
                     <motion.div key="selection" initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} className="flex-1 flex flex-col items-center p-6 max-w-md mx-auto w-full relative z-10 pt-12">
                         <div className="w-full flex justify-between items-center mb-16">
                             <div>
-                                <h1 className="text-3xl font-black mb-1">Terminal</h1>
+                                <h1 className="text-3xl font-black mb-1">GMPS Terminal</h1>
                                 <p className="text-xs text-gray-400 uppercase tracking-widest text-green-500/80">Active Mode</p>
                             </div>
                             <button onClick={() => setSecureAction({title:"Exit Terminal", desc:"Enter PIN to return to Admin Hub.", onConfirm: () => setView('hub')})} className="p-3 bg-red-500/10 text-red-500 rounded-full border border-red-500/30 active:scale-95"><X size={20}/></button>
                         </div>
 
-                        <button onClick={() => beginLiveScan('in')} className="w-full bg-[#22C55E] text-black rounded-3xl py-16 flex flex-col items-center justify-center shadow-[0_0_50px_rgba(34,197,94,0.3)] mb-6 active:scale-[0.98] transition-transform">
-                            <span className="text-5xl font-black tracking-tighter flex items-center gap-4"><ArrowLeft size={40} className="rotate-180 opacity-80" strokeWidth={4}/> PUNCH IN</span>
+                        <button onClick={() => beginLiveScan('in')} className="w-full bg-[#22C55E] text-black rounded-3xl py-24 flex flex-col items-center justify-center shadow-[0_0_60px_rgba(34,197,94,0.4)] mb-6 active:scale-[0.98] transition-transform">
+                            <span className="text-6xl font-black tracking-tighter flex items-center gap-4"><ArrowLeft size={56} className="rotate-180 opacity-80" strokeWidth={4}/> PUNCH IN</span>
                         </button>
 
                         <button onClick={() => beginLiveScan('out')} className="w-full bg-[#0F192E] border border-red-500/30 text-white rounded-3xl py-8 flex flex-col items-center justify-center mb-8 active:scale-[0.98] transition-transform">
                             <span className="text-2xl font-bold tracking-tighter flex items-center gap-3 text-red-400"><ArrowLeft size={24} className="opacity-80" strokeWidth={3}/> PUNCH OUT</span>
                         </button>
 
-                        {/* MANUAL PIN OVERRIDE BUTTON */}
+                        {/* MANUAL PIN OVERRIDE BUTTON & BRANDING */}
                         <div className="mt-auto w-full pt-8 border-t border-[#1E293B]">
                             <button onClick={() => setSecureAction({
                                 title: "Manual Override", 
                                 desc: "Enter Admin PIN to manually mark attendance.", 
                                 onConfirm: () => setView('manual_punch')
-                            })} className="w-full flex items-center justify-center gap-2 text-gray-400 text-sm hover:text-white transition-colors py-3 bg-[#1A2235] rounded-xl border border-[#2D3A54]">
+                            })} className="w-full flex items-center justify-center gap-2 text-gray-400 text-sm hover:text-white transition-colors py-3 bg-[#1A2235] rounded-xl border border-[#2D3A54] mb-6">
                                 <Keyboard size={18} /> Face recognition not working?
                             </button>
+                            
+                            <UTArtsBadge />
                         </div>
                     </motion.div>
                 )}
 
-                {/* VIEW 4.5: MANUAL PUNCH SCREEN (NEW) */}
+                {/* VIEW 4.5: MANUAL PUNCH SCREEN */}
                 {view === 'manual_punch' && (
                     <motion.div key="manual_punch" initial={{opacity:0, scale: 0.95}} animate={{opacity:1, scale: 1}} exit={{opacity:0, scale: 0.95}} className="flex-1 flex flex-col p-6 max-w-md mx-auto w-full relative z-10 justify-center">
                         <div className="bg-[#0F192E] border border-[#1E293B] rounded-3xl p-6 shadow-2xl relative">
@@ -599,7 +607,7 @@ export default function TerminalPage() {
                     </motion.div>
                 )}
 
-                {/* VIEW 6: AUTO-HANDLING RESULT MODAL (SUCCESS OR ERROR) */}
+                {/* VIEW 6: AUTO-HANDLING RESULT MODAL */}
                 {view === 'result' && scanResult && (
                     <motion.div key="result" initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} className="absolute inset-0 z-50 flex flex-col items-center justify-center p-6 bg-black/90 backdrop-blur-md">
                         <motion.div initial={{scale:0.9, y:20}} animate={{scale:1, y:0}} className={`bg-[#0F192E] border w-full max-w-sm rounded-[2rem] p-8 text-center relative overflow-hidden ${scanResult.status === 'success' ? 'border-green-500/30 shadow-[0_0_50px_rgba(34,197,94,0.15)]' : 'border-red-500/30 shadow-[0_0_50px_rgba(239,68,68,0.15)]'}`}>

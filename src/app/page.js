@@ -480,10 +480,12 @@ export default function Home() {
          {/* ------------------------------------------------ */}
          {user?.role === 'admin' && (
             <div className="space-y-6">
-               {/* Creative Bento for Admin */}
+               
                <div>
                   <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3 ml-1">Management</h3>
                   <div className="grid grid-cols-2 gap-3 h-[18rem]">
+                     
+                     {/* UNLOCKED: BROADCAST */}
                      <Link href="/admin/posts" className="col-span-2 bg-gradient-to-r from-[#FCA5A5] to-[#E11D48] rounded-[2rem] p-5 flex items-center justify-between shadow-md active:scale-95 transition-transform">
                         <div>
                            <h3 className="text-3xl font-black text-white leading-none">Broadcast</h3>
@@ -494,7 +496,8 @@ export default function Home() {
                         </div>
                      </Link>
 
-                     <Link href="/admin/students" className="col-span-1 bg-gradient-to-b from-[#7DD3FC] to-[#0284C7] rounded-[2rem] p-5 flex flex-col justify-between shadow-md active:scale-95 transition-transform relative overflow-hidden">
+                     {/* UNLOCKED: STUDENTS */}
+                     <Link href="/admin?tab=students" className="col-span-1 bg-gradient-to-b from-[#7DD3FC] to-[#0284C7] rounded-[2rem] p-5 flex flex-col justify-between shadow-md active:scale-95 transition-transform relative overflow-hidden">
                         <div className="relative z-10 flex flex-col items-center h-full pt-2">
                            <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center text-white backdrop-blur-md shrink-0"><GraduationCap size={20} /></div>
                            <div className="flex-1 flex items-center justify-center">
@@ -505,16 +508,30 @@ export default function Home() {
                      </Link>
 
                      <div className="col-span-1 flex flex-col gap-3">
-                        <Link href="/admin/teachers" className="flex-1 rounded-[2rem] bg-gradient-to-br from-[#D8B4FE] to-[#9333EA] flex flex-col items-center justify-center shadow-md active:scale-95 transition-transform p-4 text-center">
-                        <User size={20} className="text-purple-200" />
-                           <p className="text-purple-100 text-[11px] uppercase tracking-widest font-bold mb-1">Manage Staff</p>
+                        
+                        {/* LOCKED: TEACHERS */}
+                        <Link 
+                            href={user?.level == 1 ? "/admin?tab=teachers" : "#"} 
+                            onClick={(e) => { if(user?.level != 1) { e.preventDefault(); alert("Super Admin Only"); } }}
+                            className={`flex-1 rounded-[2rem] bg-gradient-to-br from-[#D8B4FE] to-[#9333EA] flex flex-col items-center justify-center shadow-md p-4 text-center relative overflow-hidden ${user?.level == 1 ? 'active:scale-95 transition-transform' : 'opacity-70 cursor-not-allowed'}`}
+                        >
+                           <User size={20} className="text-purple-200" />
+                           <p className="text-purple-100 text-[11px] uppercase tracking-widest font-bold mb-1 mt-1">Manage Staff</p>
                            <h3 className="text-2xl font-black text-white leading-none">Teachers</h3>
+                           {user?.level != 1 && <div className="absolute inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center rounded-[2rem]"><Lock size={24} className="text-white opacity-80" /></div>}
                         </Link>
-                        <Link href="#" className="h-[4.5rem] bg-gradient-to-r from-[#6EE7B7] to-[#059669] rounded-[1.5rem] p-4 flex items-center justify-center shadow-md active:scale-95 transition-transform">
-                        <div className="w-10 h-10  flex items-center rounded-full justify-center text-white backdrop-blur-md shrink-0 mb-2">
+                        
+                        {/* LOCKED: FEES */}
+                        <Link 
+                            href={user?.level == 1 ? "/admin?tab=fees" : "#"} 
+                            onClick={(e) => { if(user?.level != 1) { e.preventDefault(); alert("Super Admin Only"); } }}
+                            className={`h-[4.5rem] bg-gradient-to-r from-[#6EE7B7] to-[#059669] rounded-[1.5rem] p-4 flex items-center justify-center shadow-md gap-3 relative overflow-hidden ${user?.level == 1 ? 'active:scale-95 transition-transform' : 'opacity-70 cursor-not-allowed'}`}
+                        >
+                           <div className="w-10 h-10 flex items-center rounded-full justify-center text-white backdrop-blur-md shrink-0">
                               <CreditCard size={20} />
                            </div>
-                           <h3 className="text-xl font-black text-white tracking-wide">Fees Setup</h3>
+                           <h3 className="text-xl font-black text-white tracking-wide">Fees</h3>
+                           {user?.level != 1 && <div className="absolute inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center rounded-[1.5rem]"><Lock size={24} className="text-white opacity-80" /></div>}
                         </Link>
                      </div>
                   </div>
@@ -525,19 +542,44 @@ export default function Home() {
                   <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3 ml-1">Admin Tools</h3>
                   <div className="bg-white dark:bg-[#151515] border border-gray-100 dark:border-gray-800 rounded-[2rem] p-5 shadow-sm">
                      <div className="grid grid-cols-4 gap-y-6 gap-x-2">
-                        <ToolAppIcon title="Reports" icon={Activity} link="#" iconColor="text-amber-500" />
-                        <ToolAppIcon title="Leave Appr." icon={CalendarMinus} link="#" iconColor="text-pink-500" />
-                        <ToolAppIcon title="Live Monitor" icon={MonitorPlay} link="#" iconColor="text-teal-500" />
-                        <ToolAppIcon title="Transport" icon={Bus} link="#" iconColor="text-slate-600" />
                         
-                        <ToolAppIcon title="Events" icon={CalendarRange} link="/events?source=twa" iconColor="text-orange-500" />
-                        <ToolAppIcon title="Gallery" icon={ImageIcon} link="/gallery?source=twa" iconColor="text-sky-500" />
-                        <ToolAppIcon title="SMS Blast" icon={MessageSquare} link="#" iconColor="text-indigo-500" />
-                        <ToolAppIcon title="Expenses" icon={CreditCard} link="#" iconColor="text-rose-500" />
-                        
-                        <ToolAppIcon title="Calendar" icon={CalendarDays} link="/calendar" iconColor="text-purple-600" />
-                        <ToolAppIcon title="Complaints" icon={HelpCircle} link="#" iconColor="text-fuchsia-500" />
+                        {/* UNLOCKED TOOL */}
                         <ToolAppIcon title="Settings" icon={Settings} link="/settings" iconColor="text-gray-600" />
+
+                        {/* EXPLICITLY LOCKED TOOLS (Everything else) */}
+                        <div onClick={(e) => { if(user?.level != 1) { e.preventDefault(); alert("Super Admin Only"); } }}>
+                            <ToolAppIcon title="Events" icon={CalendarRange} link={user?.level == 1 ? "/events?source=twa" : "#"} iconColor={user?.level == 1 ? "text-orange-500" : "text-gray-400"} />
+                        </div>
+                        <div onClick={(e) => { if(user?.level != 1) { e.preventDefault(); alert("Super Admin Only"); } }}>
+                            <ToolAppIcon title="Gallery" icon={ImageIcon} link={user?.level == 1 ? "/gallery?source=twa" : "#"} iconColor={user?.level == 1 ? "text-sky-500" : "text-gray-400"} />
+                        </div>
+                        <div onClick={(e) => { if(user?.level != 1) { e.preventDefault(); alert("Super Admin Only"); } }}>
+                            <ToolAppIcon title="Calendar" icon={CalendarDays} link={user?.level == 1 ? "/calendar" : "#"} iconColor={user?.level == 1 ? "text-purple-600" : "text-gray-400"} />
+                        </div>
+                        <div onClick={(e) => { if(user?.level != 1) { e.preventDefault(); alert("Super Admin Only"); } }}>
+                            <ToolAppIcon title="Syllabus" icon={Book} link={user?.level == 1 ? "/syllabus" : "#"} iconColor={user?.level == 1 ? "text-fuchsia-500" : "text-gray-400"} />
+                        </div>
+                        <div onClick={(e) => { if(user?.level != 1) { e.preventDefault(); alert("Super Admin Only"); } }}>
+                            <ToolAppIcon title="Library" icon={LibraryBig} link={user?.level == 1 ? "/library" : "#"} iconColor={user?.level == 1 ? "text-blue-600" : "text-gray-400"} />
+                        </div>
+                        <div onClick={(e) => { if(user?.level != 1) { e.preventDefault(); alert("Super Admin Only"); } }}>
+                            <ToolAppIcon title="Staff Atten." icon={UserCheck} link={user?.level == 1 ? "/admin/staff-attendance" : "#"} iconColor={user?.level == 1 ? "text-green-500" : "text-gray-400"} />
+                        </div>
+                        <div onClick={(e) => { if(user?.level != 1) { e.preventDefault(); alert("Super Admin Only"); } }}>
+                            <ToolAppIcon title="Suggestions" icon={HelpCircle} link={user?.level == 1 ? "/admin?tab=suggestions" : "#"} iconColor={user?.level == 1 ? "text-pink-500" : "text-gray-400"} />
+                        </div>
+                        <div onClick={(e) => { if(user?.level != 1) { e.preventDefault(); alert("Super Admin Only"); } }}>
+                            <ToolAppIcon title="Reports" icon={Activity} link={user?.level == 1 ? "/admin?tab=reports" : "#"} iconColor={user?.level == 1 ? "text-amber-500" : "text-gray-400"} />
+                        </div>
+                        <div onClick={(e) => { if(user?.level != 1) { e.preventDefault(); alert("Super Admin Only"); } }}>
+                            <ToolAppIcon title="Leave Appr." icon={CalendarMinus} link={user?.level == 1 ? "/admin?tab=leaves" : "#"} iconColor={user?.level == 1 ? "text-red-500" : "text-gray-400"} />
+                        </div>
+                        <div onClick={(e) => { if(user?.level != 1) { e.preventDefault(); alert("Super Admin Only"); } }}>
+                            <ToolAppIcon title="SMS Blast" icon={MessageSquare} link={user?.level == 1 ? "/admin?tab=sms" : "#"} iconColor={user?.level == 1 ? "text-indigo-500" : "text-gray-400"} />
+                        </div>
+                        <div onClick={(e) => { if(user?.level != 1) { e.preventDefault(); alert("Super Admin Only"); } }}>
+                            <ToolAppIcon title="Expenses" icon={CreditCard} link={user?.level == 1 ? "/admin?tab=expenses" : "#"} iconColor={user?.level == 1 ? "text-emerald-600" : "text-gray-400"} />
+                        </div>
                      </div>
                   </div>
                </div>

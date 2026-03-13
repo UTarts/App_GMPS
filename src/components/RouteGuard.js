@@ -9,20 +9,24 @@ export default function RouteGuard({ children }) {
   const pathname = usePathname();
 
   const isLoginPage = pathname?.includes('/login');
+  // ADDED: Define terminal page check
+  const isTerminalPage = pathname?.startsWith('/terminal');
 
   useEffect(() => {
     if (!loading) {
-      if (!user && !isLoginPage) {
+      // ADDED: Do not redirect if on the terminal page
+      if (!user && !isLoginPage && !isTerminalPage) {
         router.replace('/login');
       }
       if (user && isLoginPage) {
         router.replace('/?source=twa'); 
       }
     }
-  }, [user, loading, isLoginPage, router]);
+  }, [user, loading, isLoginPage, isTerminalPage, router]);
 
   if (loading) return <div className="h-screen w-screen bg-white dark:bg-black" />;
-  if (pathname?.startsWith('/terminal')) return children;
+  
+  if (isTerminalPage) return children;
 
   if (isLoginPage || user) {
     return children;

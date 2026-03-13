@@ -9,8 +9,19 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 
+const safeFetchJson = async (url, options = {}) => {
+    try {
+        const res = await fetch(url, options);
+        const text = await res.text();
+        const match = text.match(/\{[\s\S]*\}|\[[\s\S]*\]/);
+        return match ? JSON.parse(match[0]) : null;
+    } catch (e) {
+        return null;
+    }
+};
+
 export default function Settings() {
-  const { logout, user, accounts, switchAccount, addAccount } = useAuth(); // USING NEW addAccount
+  const { logout, user, accounts } = useAuth(); 
   const router = useRouter();
   
   // Modals State
@@ -19,7 +30,7 @@ export default function Settings() {
   const [isAddingNew, setIsAddingNew] = useState(false);
 
   // Login Form State
-  const [selectedRole, setSelectedRole] = useState('student'); // NEW ROLE STATE
+  const [selectedRole, setSelectedRole] = useState('student');
   const [loginId, setLoginId] = useState('');
   const [password, setPassword] = useState('');
   const [classId, setClassId] = useState('');
@@ -28,42 +39,96 @@ export default function Settings() {
   const [error, setError] = useState('');
   const [isClassDropdownOpen, setIsClassDropdownOpen] = useState(false);
 
-  // Hardcoded School Data
   const schoolData = {
     contacts: { phone: "+919415039082", email: "contact@govindmadhav.com" }
   };
 
-  // Fetch Classes for Dropdown (Only when adding new student)
   useEffect(() => {
-    if (isAddingNew && selectedRole === 'student' && classes.length === 0) {
-        fetch(`${process.env.NEXT_PUBLIC_API_URL}/classes.php`)
-            .then(res => res.json())
-            .then(data => { if(Array.isArray(data)) setClasses(data); })
-            .catch(err => console.error(err));
-    }
-  }, [isAddingNew, selectedRole]);
+    const fetchClasses = async () => {
+        if (isAddingNew && selectedRole === 'student' && classes.length === 0) {
+            const data = await safeFetchJson(`${process.env.NEXT_PUBLIC_API_URL}/classes.php`);
+            if (data && Array.isArray(data)) setClasses(data);
+        }
+    };
+    fetchClasses();
+  }, [isAddingNew, selectedRole, classes.length]);
 
   const confirmLogout = () => {
     logout();
     router.replace('/login');
   };
 
+  // --- THE FLAWLESS HARD-SWITCH ---
+  const handleProfileSwitch = (acc) => {
+      // 1. Set the active user into core browser memory
+      localStorage.setItem('user', JSON.stringify(acc));
+      
+      // 2. Brutal Hard-Reboot to Home Page. 
+      // This completely destroys the old layout/nav and rebuilds the app for the new user type.
+      window.location.replace('/'); 
+  };
+
+  // --- THE PERFECT ACCOUNT ADDER ---
   const handleAddSubmit = async (e) => {
     e.preventDefault();
+    
+    if (selectedRole === 'student' && !classId) {
+        setError("Please select a class from the dropdown.");
+        return;
+    }
+
     setLoading(true);
     setError('');
     
-    // Call the new generic addAccount function
-    const res = await addAccount(loginId, password, selectedRole, selectedRole === 'student' ? classId : null);
-    
-    if (res.success) {
-        setShowAccountModal(false);
-        setIsAddingNew(false);
-        setLoginId(''); setPassword(''); setClassId('');
-    } else {
-        setError(res.message);
+    try {
+        const payload = {
+            action: 'login',
+            userid: loginId,
+            password: password,
+            role: selectedRole,
+            class_id: selectedRole === 'student' ? classId : null
+        };
+
+        const res = await safeFetchJson(`${process.env.NEXT_PUBLIC_API_URL}/login.php`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        
+        if (res && res.status === 'success') {
+            const userData = res.data || res.user; 
+            
+            if (userData) {
+                const newUser = { ...userData, role: res.role || selectedRole };
+
+                let storedAccounts = [];
+                try {
+                    const localAcc = localStorage.getItem('accounts');
+                    storedAccounts = localAcc ? JSON.parse(localAcc) : [];
+                } catch(e) { storedAccounts = []; }
+                
+                if (!Array.isArray(storedAccounts)) storedAccounts = [];
+
+                const alreadyExists = storedAccounts.find(a => String(a.id) === String(newUser.id) && a.role === newUser.role);
+                if (!alreadyExists) {
+                    storedAccounts.push(newUser);
+                    localStorage.setItem('accounts', JSON.stringify(storedAccounts));
+                }
+                
+                // Immediately trigger the Hard-Switch reboot
+                handleProfileSwitch(newUser);
+            } else {
+                setError("Server returned success but no user data.");
+            }
+        } else {
+            setError(res?.message || "Invalid credentials or user not found.");
+        }
+    } catch (err) {
+        console.error("Add Account Crash:", err);
+        setError("Network error. Please check console.");
+    } finally {
+        setLoading(false);
     }
-    setLoading(false);
   };
 
   const selectedClassName = classes.find(c => c.id == classId)?.name || "Select Class";
@@ -71,101 +136,62 @@ export default function Settings() {
   return (
     <div className="min-h-screen bg-[#F2F6FA] dark:bg-[#0a0a0a] text-gray-800 dark:text-gray-100 flex flex-col font-sans">
       
-      {/* --- HEADER --- */}
-      <div className="sticky top-0 z-40 bg-white/90 dark:bg-black/90 backdrop-blur-md border-b border-gray-200 dark:border-gray-800 p-4 flex items-center gap-3">
+      <div className="sticky top-0 z-40 bg-white/90 dark:bg-black/90 backdrop-blur-md border-b border-gray-200 dark:border-gray-800 p-4 flex items-center gap-3 shadow-sm">
         <button onClick={() => router.back()} className="p-2 -ml-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 active:scale-95 transition-transform">
             <ChevronLeft size={24} className="text-gray-700 dark:text-gray-200" />
         </button>
         <h1 className="text-xl font-bold tracking-tight">Settings</h1>
       </div>
 
-      {/* --- CONTENT --- */}
       <div className="flex-1 p-4 space-y-6">
         
-        {/* SECTION 1: GENERAL */}
         <div>
             <h2 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3 ml-1">General</h2>
             <div className="bg-white dark:bg-[#151515] rounded-2xl overflow-hidden border border-gray-100 dark:border-gray-800 shadow-sm">
                 <Link href="/privacy" className="flex items-center gap-4 p-4 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors border-b border-gray-100 dark:border-gray-800">
-                    <div className="bg-blue-100 dark:bg-blue-900/30 p-2.5 rounded-full text-blue-600 dark:text-blue-400">
-                        <Shield size={20} />
-                    </div>
-                    <div className="flex-1">
-                        <h3 className="font-semibold text-sm">Privacy Policy</h3>
-                        <p className="text-xs text-gray-500">Data safety & usage</p>
-                    </div>
+                    <div className="bg-blue-100 dark:bg-blue-900/30 p-2.5 rounded-full text-blue-600 dark:text-blue-400"><Shield size={20} /></div>
+                    <div className="flex-1"><h3 className="font-semibold text-sm">Privacy Policy</h3><p className="text-xs text-gray-500">Data safety & usage</p></div>
                 </Link>
                 <div className="flex items-center gap-4 p-4 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
-                    <div className="bg-purple-100 dark:bg-purple-900/30 p-2.5 rounded-full text-purple-600 dark:text-purple-400">
-                        <Info size={20} />
-                    </div>
-                    <div className="flex-1">
-                        <h3 className="font-semibold text-sm">App Version</h3>
-                        <p className="text-xs text-gray-500">v1.0.2</p>
-                    </div>
+                    <div className="bg-purple-100 dark:bg-purple-900/30 p-2.5 rounded-full text-purple-600 dark:text-purple-400"><Info size={20} /></div>
+                    <div className="flex-1"><h3 className="font-semibold text-sm">App Version</h3><p className="text-xs text-gray-500">v1.0.2</p></div>
                 </div>
             </div>
         </div>
 
-        {/* SECTION 2: ACCOUNTS */}
         <div>
             <h2 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3 ml-1">Profiles & Accounts</h2>
             <div className="bg-white dark:bg-[#151515] rounded-2xl overflow-hidden border border-gray-100 dark:border-gray-800 shadow-sm">
-                <button 
-                    onClick={() => { setShowAccountModal(true); setIsAddingNew(false); }}
-                    className="w-full flex items-center gap-4 p-4 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors text-left"
-                >
-                    <div className="bg-orange-100 dark:bg-orange-900/30 p-2.5 rounded-full text-orange-600 dark:text-orange-400">
-                        <Users size={20} />
-                    </div>
+                <button onClick={() => { setShowAccountModal(true); setIsAddingNew(false); }} className="w-full flex items-center gap-4 p-4 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors text-left">
+                    <div className="bg-orange-100 dark:bg-orange-900/30 p-2.5 rounded-full text-orange-600 dark:text-orange-400"><Users size={20} /></div>
                     <div className="flex-1">
                         <h3 className="font-semibold text-sm text-gray-900 dark:text-white">Switch Accounts</h3>
-                        <p className="text-xs text-gray-500">
-                            {accounts.length > 1 ? `${accounts.length} Profiles Active` : 'Add another profile'}
-                        </p>
+                        <p className="text-xs text-gray-500">{accounts?.length > 1 ? `${accounts.length} Profiles Active` : 'Add another profile'}</p>
                     </div>
                     <div className="flex -space-x-2 mr-2">
-                         {accounts.slice(0,3).map((acc, i) => (
-                             <img key={i} src={`${process.env.NEXT_PUBLIC_IMAGE_BASE_URL}${acc.pic || 'GMPSimages/default_student.png'}`} className="w-6 h-6 rounded-full border border-white dark:border-gray-800" />
+                         {accounts?.slice(0,3).map((acc, i) => (
+                             <img key={i} src={`${process.env.NEXT_PUBLIC_IMAGE_BASE_URL}${acc.pic || 'GMPSimages/default_student.png'}`} className="w-6 h-6 rounded-full border border-white dark:border-gray-800 object-cover" alt="avatar" />
                          ))}
                     </div>
                 </button>
             </div>
         </div>
 
-        {/* SECTION 3: SESSION */}
         <div>
             <h2 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3 ml-1">Session</h2>
             <div className="bg-white dark:bg-[#151515] rounded-2xl overflow-hidden border border-gray-100 dark:border-gray-800 shadow-sm">
-                <button 
-                    onClick={() => setShowLogoutConfirm(true)}
-                    className="w-full flex items-center gap-4 p-4 hover:bg-red-50 dark:hover:bg-red-900/10 transition-colors text-left"
-                >
-                    <div className="bg-red-100 dark:bg-red-900/30 p-2.5 rounded-full text-red-600 dark:text-red-400">
-                        <LogOut size={20} />
-                    </div>
-                    <div>
-                        <h3 className="font-semibold text-sm text-red-600 dark:text-red-400">Logout</h3>
-                        <p className="text-xs text-gray-500">Sign out all accounts</p>
-                    </div>
+                <button onClick={() => setShowLogoutConfirm(true)} className="w-full flex items-center gap-4 p-4 hover:bg-red-50 dark:hover:bg-red-900/10 transition-colors text-left">
+                    <div className="bg-red-100 dark:bg-red-900/30 p-2.5 rounded-full text-red-600 dark:text-red-400"><LogOut size={20} /></div>
+                    <div><h3 className="font-semibold text-sm text-red-600 dark:text-red-400">Logout</h3><p className="text-xs text-gray-500">Sign out all accounts</p></div>
                 </button>
             </div>
         </div>
       </div>
 
-      {/* --- FOOTER --- */}
       <div className="mt-8 pt-8 pb-10 text-center border-t border-gray-200 dark:border-gray-800 bg-white dark:bg-[#050505]">
          <div className="flex justify-center gap-6 mb-6">
-            {schoolData?.contacts?.phone && (
-               <a href={`tel:${schoolData.contacts.phone}`} className="w-10 h-10 bg-green-50 dark:bg-green-900/20 rounded-full flex items-center justify-center text-green-600 shadow-sm border border-green-100 dark:border-green-900/30">
-                  <Phone size={18} />
-               </a>
-            )}
-            {schoolData?.contacts?.email && (
-               <a href={`mailto:${schoolData.contacts.email}`} className="w-10 h-10 bg-red-50 dark:bg-red-900/20 rounded-full flex items-center justify-center text-red-500 shadow-sm border border-red-100 dark:border-red-900/30">
-                  <Mail size={18} />
-               </a>
-            )}
+            {schoolData?.contacts?.phone && (<a href={`tel:${schoolData.contacts.phone}`} className="w-10 h-10 bg-green-50 dark:bg-green-900/20 rounded-full flex items-center justify-center text-green-600 shadow-sm border border-green-100 dark:border-green-900/30"><Phone size={18} /></a>)}
+            {schoolData?.contacts?.email && (<a href={`mailto:${schoolData.contacts.email}`} className="w-10 h-10 bg-red-50 dark:bg-red-900/20 rounded-full flex items-center justify-center text-red-500 shadow-sm border border-red-100 dark:border-red-900/30"><Mail size={18} /></a>)}
          </div>
          <div className="mb-6 px-10">
             <h2 className="font-bold text-gray-900 dark:text-white text-sm">Govind Madhav Public School</h2>
@@ -177,7 +203,7 @@ export default function Settings() {
                 <img src="https://www.utarts.in/images/UTArt_Logo.webp" alt="UT Arts Logo" className="h-6 w-6 rounded-full object-cover border border-gray-200" />
                 UT Arts <ExternalLink size={10} />
               </a>
-            </span>
+        </span>
       </div>
 
       {/* --- LOGOUT CONFIRM MODAL --- */}
@@ -190,8 +216,8 @@ export default function Settings() {
                     <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-2">Logout?</h3>
                     <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">Sign out of all accounts on this device?</p>
                     <div className="flex gap-3 w-full">
-                        <button onClick={() => setShowLogoutConfirm(false)} className="flex-1 py-3 bg-gray-100 dark:bg-gray-800 rounded-xl font-bold text-sm">Cancel</button>
-                        <button onClick={confirmLogout} className="flex-1 py-3 bg-red-500 text-white rounded-xl font-bold text-sm">Logout</button>
+                        <button onClick={() => setShowLogoutConfirm(false)} className="flex-1 py-3 bg-gray-100 dark:bg-gray-800 rounded-xl font-bold text-sm hover:bg-gray-200 transition-colors">Cancel</button>
+                        <button onClick={confirmLogout} className="flex-1 py-3 bg-red-500 text-white rounded-xl font-bold text-sm hover:bg-red-600 transition-colors">Logout</button>
                     </div>
                 </div>
               </div>
@@ -203,69 +229,60 @@ export default function Settings() {
       <AnimatePresence>
         {showAccountModal && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-black/60 z-[100] backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
-              <motion.div initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} transition={{ type: 'spring', damping: 25, stiffness: 300 }} className="bg-white dark:bg-[#1a1a1a] w-full sm:max-w-sm rounded-t-[2rem] sm:rounded-3xl p-6 border-t border-gray-200 dark:border-gray-800 max-h-[90vh] overflow-y-auto">
+              <motion.div initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} transition={{ type: 'spring', damping: 25, stiffness: 300 }} className="bg-white dark:bg-[#1a1a1a] w-full sm:max-w-sm rounded-t-[2rem] sm:rounded-3xl p-6 border-t border-gray-200 dark:border-gray-800 max-h-[90vh] overflow-y-auto custom-scrollbar">
                  
-                 {/* MODAL HEADER */}
                  <div className="flex justify-between items-center mb-6">
-                    <h3 className="text-lg font-bold text-gray-900 dark:text-white">
-                        {isAddingNew ? "Add Profile" : "Switch Profile"}
-                    </h3>
-                    <button onClick={() => setShowAccountModal(false)} className="p-2 bg-gray-100 dark:bg-gray-800 rounded-full"><X size={20} /></button>
+                    <h3 className="text-lg font-bold text-gray-900 dark:text-white">{isAddingNew ? "Add Profile" : "Switch Profile"}</h3>
+                    <button onClick={() => setShowAccountModal(false)} className="p-2 bg-gray-100 dark:bg-gray-800 rounded-full hover:bg-gray-200 transition-colors"><X size={20} /></button>
                  </div>
 
-                 {/* --- VIEW 1: ACCOUNT LIST --- */}
                  {!isAddingNew ? (
                     <div className="space-y-4">
-                        {accounts.map((acc, index) => (
-                           <div key={index} onClick={() => switchAccount(index)} className={`flex items-center gap-4 p-3 rounded-2xl border transition-all cursor-pointer ${user.id === acc.id ? 'bg-blue-50 border-blue-200 ring-1 ring-blue-500' : 'bg-gray-50 dark:bg-gray-800/50 border-transparent hover:bg-gray-100'}`}>
-                               <img src={`${process.env.NEXT_PUBLIC_IMAGE_BASE_URL}${acc.pic || 'GMPSimages/default_student.png'}`} className="w-12 h-12 rounded-full object-cover" />
+                        {accounts?.map((acc, index) => (
+                           <div 
+                                key={index} 
+                                onClick={() => handleProfileSwitch(acc)} 
+                                className={`flex items-center gap-4 p-3 rounded-2xl border transition-all cursor-pointer ${user?.id === acc.id && user?.role === acc.role ? 'bg-blue-50 border-blue-200 ring-1 ring-blue-500 dark:bg-blue-900/20 dark:border-blue-800' : 'bg-gray-50 dark:bg-gray-800/50 border-transparent hover:bg-gray-100'}`}
+                            >
+                               <img src={`${process.env.NEXT_PUBLIC_IMAGE_BASE_URL}${acc.pic || 'GMPSimages/default_student.png'}`} className="w-12 h-12 rounded-full object-cover border border-white" alt="avatar"/>
                                <div className="flex-1">
                                    <h4 className="font-bold text-sm text-gray-900 dark:text-white">{acc.name}</h4>
-                                   <p className="text-xs text-gray-500 capitalize">{acc.role}</p>
+                                   <p className="text-[10px] font-bold uppercase tracking-widest text-gray-500">{acc.role}</p>
                                </div>
-                               {user.id === acc.id && <div className="bg-blue-500 text-white p-1 rounded-full"><Check size={14} /></div>}
+                               {user?.id === acc.id && user?.role === acc.role && <div className="bg-blue-500 text-white p-1 rounded-full"><Check size={14} /></div>}
                            </div>
                         ))}
-                        
                         <button onClick={() => setIsAddingNew(true)} className="w-full py-4 mt-2 border-2 border-dashed border-gray-200 dark:border-gray-700 rounded-2xl flex items-center justify-center gap-2 text-gray-500 font-bold text-sm hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
                             <UserPlus size={18} /> Add New Profile
                         </button>
                     </div>
                  ) : (
-                    
-                 /* --- VIEW 2: LOGIN FORM --- */
                     <form onSubmit={handleAddSubmit} className="space-y-4">
-                        
-                        {/* ROLE SELECTOR TABS */}
                         <div className="flex bg-gray-100 dark:bg-gray-800 p-1 rounded-xl mb-4">
                             {['student', 'teacher', 'admin'].map(role => (
-                                <button 
-                                    key={role} type="button" 
-                                    onClick={() => setSelectedRole(role)}
-                                    className={`flex-1 py-2 text-xs font-bold rounded-lg capitalize transition-all ${selectedRole === role ? 'bg-white dark:bg-[#2a2a2a] shadow-sm text-blue-600 dark:text-blue-400' : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'}`}
-                                >
+                                <button key={role} type="button" onClick={() => setSelectedRole(role)} className={`flex-1 py-2 text-xs font-bold rounded-lg capitalize transition-all ${selectedRole === role ? 'bg-white dark:bg-[#2a2a2a] shadow-sm text-blue-600 dark:text-blue-400' : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'}`}>
                                     {role}
                                 </button>
                             ))}
                         </div>
 
                         <div className="space-y-1">
-                            <label className="text-xs font-bold text-gray-400 ml-1">User ID</label>
-                            <input type="text" value={loginId} onChange={(e) => setLoginId(e.target.value)} className="w-full p-3 bg-gray-50 dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 outline-none focus:ring-2 focus:ring-blue-500" placeholder="Enter ID" required />
+                            <label className="text-[10px] font-bold uppercase tracking-widest text-gray-400 ml-1">User ID</label>
+                            <input type="text" value={loginId} onChange={(e) => setLoginId(e.target.value)} className="w-full p-3 bg-gray-50 dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 outline-none focus:ring-2 focus:ring-blue-500 transition-shadow font-bold text-sm" placeholder="Enter ID" required />
                         </div>
 
-                        {/* Class Dropdown - ONLY SHOW IF STUDENT */}
                         {selectedRole === 'student' && (
                             <div className="space-y-1 relative">
-                                <label className="text-xs font-bold text-gray-400 ml-1">Class</label>
-                                <div onClick={() => setIsClassDropdownOpen(!isClassDropdownOpen)} className="w-full p-3 bg-gray-50 dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 flex justify-between items-center cursor-pointer">
-                                    <span className="text-sm font-medium">{selectedClassName}</span>
-                                    <ChevronDown size={16} />
+                                <label className="text-[10px] font-bold uppercase tracking-widest text-gray-400 ml-1">Class</label>
+                                <div onClick={() => setIsClassDropdownOpen(!isClassDropdownOpen)} className="w-full p-3 bg-gray-50 dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 flex justify-between items-center cursor-pointer transition-shadow hover:ring-2 hover:ring-gray-200 dark:hover:ring-gray-800">
+                                    <span className={`text-sm font-bold ${!classId ? 'text-gray-400' : ''}`}>{selectedClassName}</span>
+                                    <ChevronDown size={16} className="text-gray-400" />
                                 </div>
                                 {isClassDropdownOpen && (
-                                    <div className="absolute top-full left-0 right-0 mt-2 bg-white dark:bg-[#222] border border-gray-100 dark:border-gray-700 rounded-xl shadow-xl z-50 max-h-40 overflow-y-auto">
+                                    <div className="absolute top-full left-0 right-0 mt-2 bg-white dark:bg-[#222] border border-gray-100 dark:border-gray-700 rounded-xl shadow-xl z-50 max-h-48 overflow-y-auto custom-scrollbar">
+                                        {classes.length === 0 ? <div className="p-3 text-sm text-gray-400 text-center font-medium">Loading classes...</div> : null}
                                         {classes.map(c => (
-                                            <div key={c.id} onClick={() => { setClassId(c.id); setIsClassDropdownOpen(false); }} className="p-3 text-sm hover:bg-blue-50 dark:hover:bg-gray-700 cursor-pointer">{c.name}</div>
+                                            <div key={c.id} onClick={() => { setClassId(c.id); setIsClassDropdownOpen(false); setError(''); }} className="p-3 text-sm font-bold hover:bg-blue-50 dark:hover:bg-gray-700 cursor-pointer border-b border-gray-50 dark:border-gray-800 last:border-0">{c.name}</div>
                                         ))}
                                     </div>
                                 )}
@@ -273,15 +290,15 @@ export default function Settings() {
                         )}
 
                         <div className="space-y-1">
-                            <label className="text-xs font-bold text-gray-400 ml-1">Password</label>
-                            <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} className="w-full p-3 bg-gray-50 dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 outline-none focus:ring-2 focus:ring-blue-500" placeholder="••••••" required />
+                            <label className="text-[10px] font-bold uppercase tracking-widest text-gray-400 ml-1">Password</label>
+                            <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} className="w-full p-3 bg-gray-50 dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 outline-none focus:ring-2 focus:ring-blue-500 transition-shadow font-bold text-sm" placeholder="••••••" required />
                         </div>
 
-                        {error && <p className="text-red-500 text-xs text-center font-bold">{error}</p>}
+                        {error && <p className="text-red-500 text-[11px] uppercase tracking-wide text-center font-black bg-red-50 dark:bg-red-900/20 p-2 rounded-lg">{error}</p>}
 
                         <div className="pt-2 flex gap-3">
-                            <button type="button" onClick={() => setIsAddingNew(false)} className="flex-1 py-3 bg-gray-100 dark:bg-gray-800 rounded-xl font-bold text-sm">Back</button>
-                            <button type="submit" disabled={loading} className="flex-1 py-3 bg-blue-600 text-white rounded-xl font-bold text-sm flex justify-center items-center gap-2">
+                            <button type="button" onClick={() => setIsAddingNew(false)} className="flex-1 py-3 bg-gray-100 dark:bg-gray-800 rounded-xl font-bold text-sm hover:bg-gray-200 transition-colors">Back</button>
+                            <button type="submit" disabled={loading} className="flex-1 py-3 bg-blue-600 text-white rounded-xl font-bold text-sm flex justify-center items-center gap-2 hover:bg-blue-700 transition-colors disabled:opacity-50">
                                 {loading ? <Loader2 className="animate-spin" size={18} /> : "Add Profile"}
                             </button>
                         </div>

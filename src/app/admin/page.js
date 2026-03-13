@@ -68,6 +68,25 @@ export default function AdminProfile() {
     const addFormRef = useRef(null);
     const editFormRef = useRef(null);
 
+    // --- NEW: URL SHORTCUT LISTENER & SECURITY LOCK ---
+    useEffect(() => {
+        if (typeof window !== 'undefined' && user) {
+            const params = new URLSearchParams(window.location.search);
+            const tabParam = params.get('tab');
+            
+            if (tabParam) {
+                // Security Check: If Level 2 Admin tries to force-open a restricted tab via URL
+                if (user?.level != 1 && tabParam !== 'students') {
+                    showModal("Access Denied", "This feature is restricted to Super Admins only.", "danger");
+                    setDashboardView(true); // Kick them back to dashboard
+                } else {
+                    // Instantly open the correct tab and hide the dashboard view!
+                    setActiveTab(tabParam);
+                    setDashboardView(false);
+                }
+            }
+        }
+    }, [user, showModal]);
     // --- 1. INITIAL FETCH ---
     useEffect(() => {
         async function loadInit() {
