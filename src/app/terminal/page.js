@@ -658,7 +658,7 @@ export default function TerminalPage() {
                             </p>
                             
                             <h2 className="text-2xl font-black text-white mb-1">
-                                {scanResult.status === 'success' ? scanResult.name : 'Record Error'}
+                                {scanResult.status === 'success' ? scanResult.name : 'Already Punched'}
                             </h2>
                             
                             <p className="text-[10px] text-gray-500 uppercase tracking-widest mb-8">
