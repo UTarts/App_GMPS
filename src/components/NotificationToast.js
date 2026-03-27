@@ -1,30 +1,44 @@
 "use client";
 import { useEffect, useState } from 'react';
-import { Bell, ArrowRight, X } from 'lucide-react';
+import { Bell, ArrowRight } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useAuth } from '../context/AuthContext';
 
 export default function NotificationToast({ onOpenSidebar }) {
   const [unreadCount, setUnreadCount] = useState(0);
   const [show, setShow] = useState(false);
+  const { user } = useAuth();
 
   useEffect(() => {
     const checkNew = async () => {
-      const dbRequest = indexedDB.open('GMPS_DB', 1);
-      dbRequest.onsuccess = (event) => {
-        const db = event.target.result;
-        if (!db.objectStoreNames.contains('notifications')) return;
-        const countRequest = db.transaction('notifications').objectStore('notifications').count();
-        countRequest.onsuccess = () => {
-          if (countRequest.result > 0) {
-            setUnreadCount(countRequest.result);
+      if (!user?.id) return;
+      try {
+        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/get_notifications.php`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ user_id: user.id, class_id: user.class_id || 0 })
+        });
+        const json = await res.json();
+        
+        if (json.status === 'success' && json.data.length > 0) {
+          // Compare database IDs with the highest ID saved locally
+          const latestKnownId = parseInt(localStorage.getItem('gmps_latest_notif_id') || '0', 10);
+          const newNotifs = json.data.filter(n => parseInt(n.id, 10) > latestKnownId);
+          
+          if (newNotifs.length > 0) {
+            setUnreadCount(newNotifs.length);
             setShow(true);
           }
-        };
-      };
+        }
+      } catch (error) {
+         // Silently fail if offline
+      }
     };
-    // Check after a 2-second delay for better UX
-    setTimeout(checkNew, 2000);
-  }, []);
+
+    // Check for new notifications 3 seconds after opening the app
+    const timer = setTimeout(checkNew, 3000);
+    return () => clearTimeout(timer);
+  }, [user]);
 
   if (!show) return null;
 
@@ -42,10 +56,9 @@ export default function NotificationToast({ onOpenSidebar }) {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={() => { onOpenSidebar(); setShow(false); }} className="bg-white text-blue-600 px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1">
+          <button onClick={() => { onOpenSidebar(); setShow(false); }} className="bg-white text-blue-600 px-4 py-2 rounded-xl text-xs font-bold shadow-lg active:scale-95 flex items-center gap-1">
             View <ArrowRight size={14} />
           </button>
-          <button onClick={() => setShow(false)} className="p-1 opacity-50"><X size={16} /></button>
         </div>
       </motion.div>
     </AnimatePresence>
