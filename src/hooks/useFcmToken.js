@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { getMessaging, getToken } from 'firebase/messaging';
-import { firebaseApp } from '../lib/firebase'; // We will create this next
+import { getMessaging, getToken, onMessage } from 'firebase/messaging';
+import { firebaseApp } from '../lib/firebase';
 import { useAuth } from '../context/AuthContext';
 
 const useFcmToken = () => {
@@ -8,25 +8,29 @@ const useFcmToken = () => {
   const [token, setToken] = useState(null);
   const [notificationPermissionStatus, setNotificationPermissionStatus] = useState('');
 
+  // 1. Token Retrieval Logic
   useEffect(() => {
     const retrieveToken = async () => {
       try {
         if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
           const messaging = getMessaging(firebaseApp);
 
-          // 1. Request Permission
-          const permission = await Notification.requestPermission();
+          // Only check existing permission, DO NOT force prompt on load
+          const permission = Notification.permission;
           setNotificationPermissionStatus(permission);
 
           if (permission === 'granted') {
-            // 2. Get Token
+            // Explicitly register the service worker to prevent Next.js routing bugs
+            const registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
+
             const currentToken = await getToken(messaging, {
-              vapidKey: 'BPjffkQmohza3sa3meVAN6F4GebNOim09QCK532rSAbYFq8WeOTKweMXyWA-KLBvl_Qrktl12MSRG8Dj8HaibdM'
+              vapidKey: 'BPjffkQmohza3sa3meVAN6F4GebNOim09QCK532rSAbYFq8WeOTKweMXyWA-KLBvl_Qrktl12MSRG8Dj8HaibdM',
+              serviceWorkerRegistration: registration
             });
 
             if (currentToken) {
               setToken(currentToken);
-              // 3. Send to Backend
+              // Send token to your PHP backend
               if (user?.id) {
                 await saveTokenToBackend(currentToken, user);
               }
@@ -42,6 +46,30 @@ const useFcmToken = () => {
 
     retrieveToken();
   }, [user]);
+
+  // 2. Foreground Message Handler (Shows alerts when app is OPEN)
+  useEffect(() => {
+    if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
+      try {
+        const messaging = getMessaging(firebaseApp);
+        const unsubscribe = onMessage(messaging, (payload) => {
+          console.log('Message received in foreground: ', payload);
+          
+          // Force a system notification to appear even if app is open
+          if (Notification.permission === 'granted') {
+            new Notification(payload.notification.title, {
+              body: payload.notification.body,
+              icon: '/icon-192.png' // Uses your existing PWA icon
+            });
+          }
+        });
+        
+        return () => unsubscribe();
+      } catch (e) {
+        console.log('Foreground messaging init error:', e);
+      }
+    }
+  }, []);
 
   return { token, notificationPermissionStatus };
 };
