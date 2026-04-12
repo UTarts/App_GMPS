@@ -18,6 +18,7 @@ import {
   MessageSquare, Film, Lock, UploadCloud, LibraryBig
 } from 'lucide-react';
 import Link from 'next/link';
+import BirthdaySection from '../components/BirthdaySection';
 
 export default function Home() {
   const { user } = useAuth();
@@ -617,6 +618,7 @@ export default function Home() {
         </div>
       )}
 
+      <BirthdaySection />
       {/* --- CLASS TOPPERS --- */}
       {data?.show_toppers && user?.role !== 'admin' && data?.toppers?.length > 0 && (
         <div className="mb-8 px-4">

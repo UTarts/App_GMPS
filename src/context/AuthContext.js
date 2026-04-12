@@ -7,18 +7,18 @@ const AuthContext = createContext();
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
-  const [accounts, setAccounts] = useState([]); // Store all family accounts
+  const [accounts, setAccounts] = useState([]); 
   const [loading, setLoading] = useState(true);
   const router = useRouter();
 
-  // 1. Initialize & Migration Logic
+  // 1. Initialize & Load Accounts
   useEffect(() => {
     const initAuth = () => {
       const storedAccounts = JSON.parse(localStorage.getItem('gmps_family_accounts') || '[]');
       const activeIndex = parseInt(localStorage.getItem('gmps_active_index') || '0');
       const oldSingleUser = JSON.parse(localStorage.getItem('gmps_user'));
 
-      // MIGRATION: If user has old single account but no family list, convert them.
+      // MIGRATION: Convert old single accounts to the new family array system
       if (storedAccounts.length === 0 && oldSingleUser) {
         const initialFamily = [oldSingleUser];
         setAccounts(initialFamily);
@@ -36,7 +36,7 @@ export function AuthProvider({ children }) {
     initAuth();
   }, []);
 
-  // 2. Standard Login
+  // 2. Initial Standard Login (Wipes previous accounts)
   const login = async (userid, password, role, class_id = null) => {
     try {
       const payload = { userid, password, role };
@@ -62,9 +62,8 @@ export function AuthProvider({ children }) {
         localStorage.setItem('gmps_active_index', '0');
         localStorage.setItem('gmps_user', JSON.stringify(userData)); 
 
-        // Redirect logic
         const isTWA = window.location.search.includes('source=twa') || localStorage.getItem('view_mode') === 'twa';
-        router.push(isTWA ? '/?source=twa' : '/profile');
+        router.push(isTWA ? '/?source=twa' : '/');
         
         return { success: true };
       } else {
@@ -75,44 +74,7 @@ export function AuthProvider({ children }) {
     }
   };
 
-  // 3. Add Student Account
-  const addStudentAccount = async (userid, password, class_id) => {
-    try {
-      const payload = { userid, password, role: 'student', class_id };
-      
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/login.php`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-
-      const data = await res.json();
-
-      if (data.status === 'success') {
-        const newStudent = { ...data.user, role: 'student' };
-        
-        // Check duplicates
-        const exists = accounts.some(acc => acc.id === newStudent.id && acc.role === 'student');
-        if (exists) return { success: false, message: "Student already added." };
-
-        // Append and Save
-        const updatedAccounts = [...accounts, newStudent];
-        setAccounts(updatedAccounts);
-        localStorage.setItem('gmps_family_accounts', JSON.stringify(updatedAccounts));
-        
-        // Auto-switch to new user (This will trigger the redirect in switchAccount)
-        switchAccount(updatedAccounts.length - 1);
-        
-        return { success: true };
-      } else {
-        return { success: false, message: data.message || "Invalid credentials" };
-      }
-    } catch (error) {
-      return { success: false, message: "Network Error" };
-    }
-  };
-
-  // 3.5 Add Generic Account (For Teachers/Admins/Students)
+  // 3. Add Additional Account (From Settings)
   const addAccount = async (userid, password, role, class_id = null) => {
     try {
       const payload = { userid, password, role };
@@ -129,17 +91,24 @@ export function AuthProvider({ children }) {
       if (data.status === 'success') {
         const newUser = { ...data.user, role };
         
-        // Check duplicates
-        const exists = accounts.some(acc => acc.id === newUser.id && acc.role === role);
-        if (exists) return { success: false, message: "Profile already added." };
+        // Convert IDs to strings to ensure perfect matching
+        const existsIndex = accounts.findIndex(acc => String(acc.id) === String(newUser.id) && acc.role === role);
+        
+        if (existsIndex !== -1) {
+          // Account already exists, just switch to it
+          switchAccount(existsIndex);
+          return { success: true };
+        }
 
-        // Append and Save
+        // Append to existing array
         const updatedAccounts = [...accounts, newUser];
+        
+        // Save everywhere
         setAccounts(updatedAccounts);
         localStorage.setItem('gmps_family_accounts', JSON.stringify(updatedAccounts));
         
-        // Auto-switch to new user
-        switchAccount(updatedAccounts.length - 1);
+        // FIX: Pass the updated array DIRECTLY to switchAccount so it doesn't rely on delayed React state
+        switchAccount(updatedAccounts.length - 1, updatedAccounts);
         
         return { success: true };
       } else {
@@ -150,23 +119,27 @@ export function AuthProvider({ children }) {
     }
   };
 
-  // 4. Switch Account (UPDATED)
-  const switchAccount = (index) => {
-    if (!accounts[index]) return;
+  // 4. Switch Account Core Logic
+  // Added "forcedAccountsList" to bypass React's asynchronous state delays
+  const switchAccount = (index, forcedAccountsList = null) => {
+    const listToUse = forcedAccountsList || accounts;
     
-    const newUser = accounts[index];
+    if (!listToUse[index]) {
+        console.error("Switch failed: Account index not found.");
+        return;
+    }
+    
+    const newUser = listToUse[index];
     setUser(newUser);
     localStorage.setItem('gmps_active_index', index.toString());
     localStorage.setItem('gmps_user', JSON.stringify(newUser)); 
     
-    // --- FIX: Redirect to Profile Page ---
-    // We use window.location.href to force a "fresh load" of the Profile page.
-    // We also preserve the '?source=twa' query if it exists, so the app stays in App Mode.
+    // Hard-Reboot to Home Page to reconstruct the app for the new user
     const query = window.location.search; 
-    window.location.href = `/profile${query}`;
+    window.location.href = `/${query}`;
   };
   
-  // 5. Logout
+  // 5. Logout All
   const logout = () => {
     setUser(null);
     setAccounts([]);
@@ -177,7 +150,7 @@ export function AuthProvider({ children }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, accounts, login, logout, switchAccount, addStudentAccount, loading }}>
+    <AuthContext.Provider value={{ user, accounts, login, logout, addAccount, switchAccount, loading }}>
       {children}
     </AuthContext.Provider>
   );

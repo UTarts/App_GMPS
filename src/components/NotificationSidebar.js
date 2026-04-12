@@ -58,12 +58,15 @@ export default function NotificationSidebar({ isOpen, onClose }) {
     <AnimatePresence>
       {isOpen && (
         <>
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose} className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50" />
-          <motion.div initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }} transition={{ type: "spring", damping: 25, stiffness: 200 }} className="fixed top-0 right-0 w-full max-w-sm h-full bg-white dark:bg-[#151515] shadow-2xl z-50 flex flex-col border-l border-gray-100 dark:border-gray-800">
-            <div className="flex items-center justify-between p-6 border-b border-gray-100 dark:border-gray-800">
+          {/* Backdrop with ultra-high z-index */}
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose} className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[9998]" />
+          
+          {/* Sidebar changed to 70% width and ultra-high z-index */}
+          <motion.div initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }} transition={{ type: "spring", damping: 25, stiffness: 200 }} className="fixed top-0 right-0 w-[85%] max-w-sm h-full bg-white dark:bg-[#151515] shadow-2xl z-[9999] flex flex-col border-l border-gray-100 dark:border-gray-800">
+            <div className="flex items-center justify-between p-4 sm:p-6 border-b border-gray-100 dark:border-gray-800">
               <div className="flex items-center gap-3">
                 <div className="bg-indigo-50 dark:bg-indigo-500/10 p-2.5 rounded-xl"><Bell size={20} className="text-indigo-600 dark:text-indigo-400" /></div>
-                <h2 className="text-lg font-black text-gray-900 dark:text-white tracking-tight">Notifications</h2>
+                <h2 className="text-lg font-black text-gray-900 dark:text-white tracking-tight">Updates</h2>
               </div>
               <button onClick={onClose} className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 bg-gray-50 dark:bg-gray-800 rounded-full transition-colors"><X size={18} /></button>
             </div>
@@ -71,10 +74,10 @@ export default function NotificationSidebar({ isOpen, onClose }) {
             <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar">
               <AnimatePresence mode="popLayout">
                 {displayableNotifications.length === 0 ? (
-                  <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col items-center justify-center h-48 text-center px-6">
+                  <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col items-center justify-center h-48 text-center px-4">
                     <div className="w-16 h-16 bg-gray-50 dark:bg-[#202020] rounded-full flex items-center justify-center mb-4"><Bell size={24} className="text-gray-300 dark:text-gray-600" /></div>
                     <p className="text-sm font-bold text-gray-900 dark:text-white mb-1">All caught up!</p>
-                    <p className="text-xs text-gray-500">No new notifications to display.</p>
+                    <p className="text-xs text-gray-500">No new notifications.</p>
                   </motion.div>
                 ) : (
                   displayableNotifications.map((n) => (

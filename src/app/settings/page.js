@@ -21,7 +21,8 @@ const safeFetchJson = async (url, options = {}) => {
 };
 
 export default function Settings() {
-  const { logout, user, accounts } = useAuth(); 
+  // Pulling the standard, unified functions directly from AuthContext
+  const { logout, user, accounts, addAccount, switchAccount } = useAuth(); 
   const router = useRouter();
   
   // Modals State
@@ -55,20 +56,16 @@ export default function Settings() {
 
   const confirmLogout = () => {
     logout();
-    router.replace('/login');
   };
 
-  // --- THE FLAWLESS HARD-SWITCH ---
+  // Maps the clicked account to its index in the array, then tells the context to switch
   const handleProfileSwitch = (acc) => {
-      // 1. Set the active user into core browser memory
-      localStorage.setItem('user', JSON.stringify(acc));
-      
-      // 2. Brutal Hard-Reboot to Home Page. 
-      // This completely destroys the old layout/nav and rebuilds the app for the new user type.
-      window.location.replace('/'); 
+    const targetIndex = accounts.findIndex(a => a.id === acc.id && a.role === acc.role);
+    if (targetIndex !== -1) {
+        switchAccount(targetIndex);
+    }
   };
 
-  // --- THE PERFECT ACCOUNT ADDER ---
   const handleAddSubmit = async (e) => {
     e.preventDefault();
     
@@ -80,55 +77,14 @@ export default function Settings() {
     setLoading(true);
     setError('');
     
-    try {
-        const payload = {
-            action: 'login',
-            userid: loginId,
-            password: password,
-            role: selectedRole,
-            class_id: selectedRole === 'student' ? classId : null
-        };
-
-        const res = await safeFetchJson(`${process.env.NEXT_PUBLIC_API_URL}/login.php`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-        });
-        
-        if (res && res.status === 'success') {
-            const userData = res.data || res.user; 
-            
-            if (userData) {
-                const newUser = { ...userData, role: res.role || selectedRole };
-
-                let storedAccounts = [];
-                try {
-                    const localAcc = localStorage.getItem('accounts');
-                    storedAccounts = localAcc ? JSON.parse(localAcc) : [];
-                } catch(e) { storedAccounts = []; }
-                
-                if (!Array.isArray(storedAccounts)) storedAccounts = [];
-
-                const alreadyExists = storedAccounts.find(a => String(a.id) === String(newUser.id) && a.role === newUser.role);
-                if (!alreadyExists) {
-                    storedAccounts.push(newUser);
-                    localStorage.setItem('accounts', JSON.stringify(storedAccounts));
-                }
-                
-                // Immediately trigger the Hard-Switch reboot
-                handleProfileSwitch(newUser);
-            } else {
-                setError("Server returned success but no user data.");
-            }
-        } else {
-            setError(res?.message || "Invalid credentials or user not found.");
-        }
-    } catch (err) {
-        console.error("Add Account Crash:", err);
-        setError("Network error. Please check console.");
-    } finally {
+    // Call the centralized Context function to handle API, saving, and switching
+    const res = await addAccount(loginId, password, selectedRole, selectedRole === 'student' ? classId : null);
+    
+    if (!res.success) {
+        setError(res.message);
         setLoading(false);
     }
+    // If successful, the AuthContext automatically forces a hard reload, so we don't need to do anything else here!
   };
 
   const selectedClassName = classes.find(c => c.id == classId)?.name || "Select Class";

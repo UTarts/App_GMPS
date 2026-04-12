@@ -12,40 +12,48 @@ firebase.initializeApp({
 
 const messaging = firebase.messaging();
 
-messaging.onBackgroundMessage((payload) => {
+messaging.onBackgroundMessage(async (payload) => {
   console.log('Received background message: ', payload);
   
-  // Set the app badge if supported
-  if ('setAppBadge' in navigator) navigator.setAppBadge(1).catch(console.error);
+  // Smarter Badging: Add to the existing badge count
+  if ('setAppBadge' in navigator) {
+    try {
+      await navigator.setAppBadge(); 
+    } catch (e) {
+      console.error('Error setting badge:', e);
+    }
+  }
 
-  // Explicitly command the browser to show the visual notification
   const notificationTitle = payload.notification?.title || 'GMPS Notification';
   const notificationOptions = {
     body: payload.notification?.body || 'You have a new update.',
-    icon: '/icon-192.png', // Uses your existing PWA icon
-    data: payload.data || {} // Passes any extra data (like URLs) for clicks
+    icon: '/icon-192.png', 
+    badge: '/icon-192.png', 
+    data: payload.data || { url: '/' } 
   };
 
   self.registration.showNotification(notificationTitle, notificationOptions);
 });
 
-// Optional but recommended: Handle what happens when a user clicks the notification
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-  const targetUrl = event.notification.data?.url || '/';
+  
+  // FIX: Build the absolute URL so the phone knows exactly what app window to open
+  const urlToOpen = new URL(event.notification.data?.url || '/', self.location.origin).href;
   
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windowClients) => {
-      // If the app is already open, focus it
+      // If the app is already open in the background, bring it to the front
       for (let i = 0; i < windowClients.length; i++) {
         const client = windowClients[i];
-        if (client.url.includes(targetUrl) && 'focus' in client) {
+        // We use startsWith to catch variations of the URL
+        if (client.url.startsWith(urlToOpen) && 'focus' in client) {
           return client.focus();
         }
       }
-      // Otherwise, open a new window
+      // If the app is fully closed, open a new instance
       if (clients.openWindow) {
-        return clients.openWindow(targetUrl);
+        return clients.openWindow(urlToOpen);
       }
     })
   );

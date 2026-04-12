@@ -16,7 +16,8 @@ import useFcmToken from "../hooks/useFcmToken";
 import NotificationManager from "../components/NotificationManager";
 import { SessionProvider } from "../context/SessionContext";
 import NotificationToast from "../components/NotificationToast";
-import NotificationSidebar from "../components/NotificationSidebar"; // ADDED MISSING IMPORT
+import NotificationSidebar from "../components/NotificationSidebar"; 
+import BirthdayPopup from '../components/BirthdayPopup';
 
 function FcmHandler() {
   useFcmToken();
@@ -27,12 +28,26 @@ export default function RootLayout({ children }) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   useEffect(() => {
-    // Clear badge when app is opened
-    if (typeof navigator !== 'undefined' && 'clearAppBadge' in navigator) {
-      navigator.clearAppBadge().catch((error) => {
-        console.error('Failed to clear app badge:', error);
-      });
-    }
+    // Function to clear the red dot
+    const clearBadge = () => {
+      if (typeof navigator !== 'undefined' && 'clearAppBadge' in navigator) {
+        navigator.clearAppBadge().catch(console.error);
+      }
+    };
+
+    // Clear it immediately on load
+    clearBadge();
+
+    // Also clear it when the app comes back from the background
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') {
+        clearBadge();
+      }
+    });
+
+    return () => {
+      document.removeEventListener('visibilitychange', clearBadge);
+    };
   }, []);
 
   return (
@@ -43,6 +58,7 @@ export default function RootLayout({ children }) {
         {/* CRITICAL: HIDE FROM SEARCH ENGINES */}
         <meta name="robots" content="noindex, nofollow" />
         {/* APPLE PWA TAGS */}
+        <meta name="mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
       </head>
@@ -57,7 +73,7 @@ export default function RootLayout({ children }) {
                 {/* NOTIFICATION MODULES */}
                 <NotificationToast onOpenSidebar={() => setIsSidebarOpen(true)} />
                 <NotificationSidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
-                
+                <BirthdayPopup />                
                 <NotificationManager />
                 <FcmHandler />
                 <RouteGuard>
