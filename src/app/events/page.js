@@ -182,7 +182,7 @@ import {
                                     <span className="bg-green-100 text-green-700 text-[10px] font-bold px-2 py-0.5 rounded">UPDATE</span>
                                     <span className="text-[10px] text-gray-400">{formatTime(upd.created_at)}</span>
                                 </div>
-                                <p className="text-sm text-gray-800 dark:text-gray-200 leading-relaxed">{upd.update_text}</p>
+                                <div className="text-sm text-gray-800 dark:text-gray-200 leading-relaxed space-y-1" dangerouslySetInnerHTML={{ __html: upd.update_text }} />
                             </div>
                         ))}
 
@@ -204,7 +204,7 @@ import {
                                     </div>
                                 )}
                                 <h3 className="text-base font-bold text-gray-900 dark:text-white mb-1">{ann.title}</h3>
-                                <p className="text-xs text-gray-600 dark:text-gray-400 leading-relaxed">{ann.content}</p>
+                                <div className="text-xs text-gray-600 dark:text-gray-400 leading-relaxed space-y-1" dangerouslySetInnerHTML={{ __html: ann.content }} />
                             </div>
                         ))}
                     </motion.div>
@@ -224,7 +224,7 @@ import {
                                     <div className="flex-grow bg-white dark:bg-[#151515] p-4 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm">
                                         {evt.image_url && <img src={`${process.env.NEXT_PUBLIC_IMAGE_BASE_URL}${evt.image_url}`} className="w-full h-28 object-cover rounded-lg mb-3" loading="lazy" />}
                                         <h3 className="text-sm font-bold text-gray-900 dark:text-white">{evt.title}</h3>
-                                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 line-clamp-2">{evt.description}</p>
+                                        <div className="text-xs text-gray-500 dark:text-gray-400 mt-1 line-clamp-2 space-y-1" dangerouslySetInnerHTML={{ __html: evt.description }} />
                                     </div>
                                 </div>
                             );

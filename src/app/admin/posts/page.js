@@ -1,16 +1,19 @@
 "use client";
 import { useEffect, useState, useRef } from 'react';
 import { useAuth } from "../../../context/AuthContext";
-import { useAppModal } from "../../../context/ModalContext"; // Import Global Modal
+import { useAppModal } from "../../../context/ModalContext"; 
 import { 
     Camera, Calendar, FileText, Bell, Trash2, X, UploadCloud, 
     CheckCircle2, AlertCircle, Image as ImageIcon, Video, Plus, PlayCircle
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import dynamic from 'next/dynamic';
+import 'react-quill-new/dist/quill.snow.css'; // The modern editor styling
+const ReactQuill = dynamic(() => import('react-quill-new'), { ssr: false });
 
 export default function AdminPosts() {
     const { user } = useAuth();
-    const { showModal } = useAppModal(); // Use Modal Hook
+    const { showModal } = useAppModal(); 
     
     const [activeTab, setActiveTab] = useState('updates'); 
     const [data, setData] = useState({ notices: [], updates: [], events: [], whats_today: null });
@@ -23,12 +26,20 @@ export default function AdminPosts() {
     const [formData, setFormData] = useState({});
     const fileInputRef = useRef(null);
     const todayInputRef = useRef(null);
+    
     // UTILS
     const renderTextWithLinks = (text) => {
         if (!text) return text;
-        // Regex to find URLs
-        const urlRegex = /(https?:\/\/[^\s]+)/g;
         
+        // If the text contains HTML (from React Quill), we need to safely strip it for the history preview list
+        const isHTML = /<[a-z][\s\S]*>/i.test(text);
+        if (isHTML) {
+            // Strip tags just for the small preview list on this page
+            return text.replace(/<[^>]+>/g, ' ');
+        }
+
+        // Regex to find URLs for legacy plain text
+        const urlRegex = /(https?:\/\/[^\s]+)/g;
         return text.split(urlRegex).map((part, i) => {
             if (part.match(urlRegex)) {
                 return (
@@ -95,7 +106,6 @@ export default function AdminPosts() {
     }, [galleryPreviews]);
 
     // --- HANDLERS ---
-
     const handleUploadToday = async (e) => {
         const file = e.target.files[0];
         if(!file) return;
@@ -135,6 +145,16 @@ export default function AdminPosts() {
 
         const fd = new FormData();
         let typeAction = '';
+
+        // Prevent empty rich text submissions
+        const contentKey = activeTab === 'updates' ? 'text' : activeTab === 'events' ? 'description' : 'content';
+        const contentVal = formData[contentKey] || '';
+        
+        if (activeTab !== 'gallery' && (!contentVal || contentVal === '<p><br></p>')) {
+            showToast("Content cannot be empty", "error");
+            setSubmitting(false);
+            return;
+        }
 
         if (activeTab === 'gallery') {
             typeAction = 'save_gallery_item';
@@ -177,7 +197,6 @@ export default function AdminPosts() {
         }
     };
 
-    // --- APP-LIKE DELETION LOGIC ---
     const requestDelete = (id, type) => {
         showModal(
             "Delete Item?", 
@@ -207,16 +226,22 @@ export default function AdminPosts() {
 
     if (loading) return <AdminPostsSkeleton />;
 
+    const contentKey = activeTab === 'updates' ? 'text' : activeTab === 'events' ? 'description' : 'content';
+
     return (
         <div className="min-h-screen bg-gray-50 dark:bg-[#0a0a0a] pb-24 font-sans text-gray-800 dark:text-gray-100 transition-colors duration-300">
-            
-            {/* Header */}
+            {/* Inject small styles to make Quill editor look clean inside dark/light mode */}
+            <style dangerouslySetInnerHTML={{__html: `
+                .ql-container { font-family: inherit; font-size: 14px; border-bottom-left-radius: 0.75rem; border-bottom-right-radius: 0.75rem; }
+                .ql-toolbar { border-top-left-radius: 0.75rem; border-top-right-radius: 0.75rem; background: #f9fafb; }
+                .ql-editor { min-height: 120px; }
+            `}} />
+
             <div className="bg-white dark:bg-[#151515] p-4 sticky top-0 z-10 border-b border-gray-100 dark:border-gray-800 shadow-sm">
                 <h1 className="font-bold text-lg">Manage Posts</h1>
             </div>
 
             <div className="p-4 space-y-6 max-w-2xl mx-auto">
-                
                 {/* --- 1. WHAT'S TODAY CARD --- */}
                 <div className="bg-gradient-to-br from-indigo-600 to-violet-700 dark:from-indigo-900 dark:to-violet-950 rounded-3xl p-6 text-white shadow-xl relative overflow-hidden">
                     <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full blur-3xl -mr-10 -mt-10"></div>
@@ -236,12 +261,7 @@ export default function AdminPosts() {
                         <div className="relative group">
                             {data.whats_today ? (
                                 <div className="w-20 h-20 rounded-2xl border-2 border-white/30 overflow-hidden shadow-lg bg-black/20 relative">
-                                    <img 
-                                        src={`${process.env.NEXT_PUBLIC_IMAGE_BASE_URL}${data.whats_today.image_url}`} 
-                                        className="w-full h-full object-cover" 
-                                        alt="Today" 
-                                        loading="lazy"
-                                    />
+                                    <img src={`${process.env.NEXT_PUBLIC_IMAGE_BASE_URL}${data.whats_today.image_url}`} className="w-full h-full object-cover" alt="Today" loading="lazy" />
                                 </div>
                             ) : (
                                 <div className="w-20 h-20 rounded-2xl border-2 border-white/20 bg-white/10 flex items-center justify-center"><span className="text-[10px] opacity-60">No Image</span></div>
@@ -307,7 +327,17 @@ export default function AdminPosts() {
                             <>
                                 {activeTab !== 'updates' && <input type="text" placeholder="Title" className="w-full p-3 bg-gray-50 dark:bg-[#0a0a0a] border border-gray-100 dark:border-gray-800 rounded-xl text-sm outline-none font-bold dark:text-white placeholder:text-gray-400" value={formData.title || ''} onChange={e => setFormData({...formData, title: e.target.value})} required />}
                                 {activeTab === 'events' && <input type="date" className="w-full p-3 bg-gray-50 dark:bg-[#0a0a0a] border border-gray-100 dark:border-gray-800 rounded-xl text-sm outline-none text-gray-600 dark:text-gray-300" value={formData.date || ''} onChange={e => setFormData({...formData, date: e.target.value})} required />}
-                                <textarea rows="3" placeholder={activeTab === 'updates' ? "Share any instagram link with caption to show in the Highlights..." : "Description..."} className="w-full p-3 bg-gray-50 dark:bg-[#0a0a0a] border border-gray-100 dark:border-gray-800 rounded-xl text-sm outline-none transition-colors resize-none dark:text-white placeholder:text-gray-400" value={formData[activeTab === 'updates' ? 'text' : activeTab === 'events' ? 'description' : 'content'] || ''} onChange={e => setFormData({...formData, [activeTab === 'updates' ? 'text' : activeTab === 'events' ? 'description' : 'content']: e.target.value})} required></textarea>
+                                
+                                {/* REPLACED TEXTAREA WITH REACT QUILL */}
+                                <div className="bg-white dark:bg-[#0a0a0a] rounded-xl border border-gray-200 dark:border-gray-800 text-gray-900 dark:text-white">
+                                    <ReactQuill 
+                                        theme="snow"
+                                        value={formData[contentKey] || ''} 
+                                        onChange={(val) => setFormData({...formData, [contentKey]: val})} 
+                                        placeholder={activeTab === 'updates' ? "Share an update or instagram link..." : "Beautifully format your notice here..."}
+                                    />
+                                </div>
+
                                 <div className="flex items-center gap-3">
                                     <label className="flex-1 flex items-center justify-center gap-2 p-3 border border-dashed border-gray-300 dark:border-gray-700 rounded-xl cursor-pointer hover:bg-gray-50 dark:hover:bg-[#202020] transition-colors"><Camera size={16} className="text-gray-400" /><span className="text-xs text-gray-500 font-medium truncate" id="fileNameDisplay">Add Image (Optional)</span><input ref={fileInputRef} type="file" className="hidden" accept="image/*" onChange={(e) => { if(e.target.files[0]) document.getElementById('fileNameDisplay').innerText = e.target.files[0].name; }} /></label>
                                 </div>
@@ -331,48 +361,29 @@ export default function AdminPosts() {
                     </div>
 
                     <div className="space-y-3">
-                        {/* GALLERY HISTORY GRID */}
                         {activeTab === 'gallery' ? (
                             <div className="grid grid-cols-4 gap-2">
                                 {galleryHistory.map(item => (
                                     <div key={`${item.type}-${item.id}`} className="relative aspect-square rounded-xl overflow-hidden bg-gray-100 dark:bg-gray-800 shadow-sm border border-gray-200 dark:border-gray-700 group">
                                         {item.type === 'photo' ? (
-                                            /* REVERTED: Standard IMG tag */
-                                            <img 
-                                                src={`${process.env.NEXT_PUBLIC_IMAGE_BASE_URL}${item.url}`} 
-                                                className="w-full h-full object-cover" 
-                                                alt="Gallery Thumbnail"
-                                                loading="lazy"
-                                            />
+                                            <img src={`${process.env.NEXT_PUBLIC_IMAGE_BASE_URL}${item.url}`} className="w-full h-full object-cover" alt="Gallery Thumbnail" loading="lazy" />
                                         ) : (
                                             <div className="w-full h-full flex items-center justify-center bg-black/10 dark:bg-black/30">
                                                 <PlayCircle size={24} className="text-gray-500 opacity-80"/>
                                             </div>
                                         )}
                                         <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors">
-                                            <button 
-                                                onClick={() => requestDelete(item.id, item.type)} 
-                                                className="absolute top-1 right-1 bg-red-500 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
-                                            >
-                                                <Trash2 size={12}/>
-                                            </button>
+                                            <button onClick={() => requestDelete(item.id, item.type)} className="absolute top-1 right-1 bg-red-500 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 size={12}/></button>
                                         </div>
                                     </div>
                                 ))}
                             </div>
                         ) : (
-                            /* STANDARD HISTORY LIST */
                             data[activeTab].map(item => (
                                 <motion.div layout initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} key={item.id} className="bg-white dark:bg-[#151515] p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 flex gap-4 relative overflow-hidden transition-colors">
                                     {item.image_url ? (
                                         <div className="w-16 h-16 shrink-0 rounded-xl bg-gray-100 dark:bg-gray-800 overflow-hidden cursor-pointer relative" onClick={() => window.open(`${process.env.NEXT_PUBLIC_IMAGE_BASE_URL}${item.image_url}`, '_blank')}>
-                                            {/* REVERTED: Standard IMG tag */}
-                                            <img 
-                                                src={`${process.env.NEXT_PUBLIC_IMAGE_BASE_URL}${item.image_url}`} 
-                                                className="w-full h-full object-cover" 
-                                                alt="Update"
-                                                loading="lazy"
-                                            />
+                                            <img src={`${process.env.NEXT_PUBLIC_IMAGE_BASE_URL}${item.image_url}`} className="w-full h-full object-cover" alt="Update" loading="lazy" />
                                         </div>
                                     ) : (
                                         <div className="w-16 h-16 shrink-0 rounded-xl bg-gray-50 dark:bg-gray-800 flex items-center justify-center text-gray-300 dark:text-gray-600"><FileText size={24} /></div>

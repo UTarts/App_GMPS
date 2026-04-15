@@ -581,6 +581,9 @@ export default function Home() {
                         <div onClick={(e) => { if(user?.level != 1) { e.preventDefault(); alert("Super Admin Only"); } }}>
                             <ToolAppIcon title="Expenses" icon={CreditCard} link={user?.level == 1 ? "/admin?tab=expenses" : "#"} iconColor={user?.level == 1 ? "text-emerald-600" : "text-gray-400"} />
                         </div>
+                        <div onClick={(e) => { if(user?.level != 1) { e.preventDefault(); alert("Super Admin Only"); } }}>
+                            <ToolAppIcon title="Today's Attendance" icon={UserCheck} link={user?.level == 1 ? "/admin/attendance" : "#"} iconColor={user?.level == 1 ? "text-red-500" : "text-red-400"} />
+                        </div>
                      </div>
                   </div>
                </div>
