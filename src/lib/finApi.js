@@ -9,17 +9,37 @@
 const API = () => process.env.NEXT_PUBLIC_API_URL;
 
 async function finApi(action, params = {}, token = null, method = 'POST') {
-  const url = `${API()}/fin_api.php?action=${action}`;
+  // 1. Send token in URL to bypass header-stripping
+  const url = `${API()}/fin_api.php?action=${action}${token ? `&token=${encodeURIComponent(token)}` : ''}`;
+  
   const headers = { 'Content-Type': 'application/json' };
-  if (token) headers['Authorization'] = `Bearer ${token}`;
+  if (token) headers['Authorization'] = `Bearer ${token}`; // Keep as backup
+  
   const options = {
     method,
     headers,
     ...(method === 'POST' ? { body: JSON.stringify(params) } : {}),
   };
+  
   const res = await fetch(url, options);
-  const data = await res.json();
-  if (!data.success && data.message) throw new Error(data.message);
+  const text = await res.text(); 
+  
+  if (!text) {
+      throw new Error("The server returned an empty response. Check PHP error logs.");
+  }
+
+  let data;
+  try {
+      data = JSON.parse(text);
+  } catch (e) {
+      console.error("API CRASH RESPONSE:", text);
+      throw new Error("Server error: Failed to parse data. Please check the console.");
+  }
+
+  if (!data.success && data.message) {
+      throw new Error(data.message);
+  }
+  
   return data;
 }
 

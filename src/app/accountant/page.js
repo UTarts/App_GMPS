@@ -726,7 +726,8 @@ const TABS = [
 ];
 
 export default function AccountantPage() {
-  const { user, token } = useAuth();
+  const { user } = useAuth();
+  const token = user?.token;
   const { theme } = useTheme();
   const { showModal } = useAppModal();
   const [tab, setTab] = useState('dashboard');

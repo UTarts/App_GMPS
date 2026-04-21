@@ -1,8 +1,8 @@
 "use client";
 import { useEffect, useState, useCallback } from 'react';
-import { useAuth } from "../context/AuthContext";
-import { useTheme } from "../context/ThemeContext";
-import { useAppModal } from "../context/ModalContext";
+import { useAuth } from "../../context/AuthContext";
+import { useTheme } from "../../context/ThemeContext";
+import { useAppModal } from "../../context/ModalContext";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Wallet, CheckCircle2, AlertCircle, Clock, CreditCard,
@@ -10,7 +10,7 @@ import {
   IndianRupee, CalendarDays, FileText, BadgeCheck, Ban,
   ArrowLeft, Smartphone, Building2, BookOpen
 } from 'lucide-react';
-import { feeApi } from '../lib/finApi';
+import { feeApi } from '../../lib/finApi';
 
 const MONTHS = ['','Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
@@ -188,7 +188,8 @@ function PayModal({ selectedInvoices, onClose, onSuccess, token, showModal }) {
 // MAIN FEES PAGE
 // ══════════════════════════════════════════════════════════════
 export default function FeesPage() {
-  const { user, token } = useAuth();
+  const { user } = useAuth();
+  const token = user?.token;
   const { theme } = useTheme();
   const { showModal } = useAppModal();
 
