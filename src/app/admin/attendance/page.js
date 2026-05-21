@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from "../../../context/AuthContext";
 import { useRouter } from 'next/navigation';
-import { ChevronLeft, ChevronRight, Users, UserCheck, UserX, AlertCircle, X, Loader2, Calendar } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Users, UserCheck, UserX, AlertCircle, X, Loader2, Calendar, ArrowRight, Edit3 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export default function MasterAttendance() {
@@ -108,6 +108,22 @@ export default function MasterAttendance() {
                 <p className="text-[10px] font-bold text-red-600 uppercase tracking-widest">Absent</p>
               </div>
             </div>
+
+            <button 
+                onClick={() => router.push('/admin/proxy-attendance')}
+                className="w-full mt-4 bg-gray-900 text-white rounded-3xl p-5 flex items-center justify-between shadow-xl active:scale-95 transition-transform"
+              >
+                <div className="flex items-center gap-4">
+                  <div className="bg-white/20 p-3 rounded-2xl">
+                    <Edit3 size={24} className="text-white" />
+                  </div>
+                  <div className="text-left">
+                    <h3 className="font-black text-lg">Enter Proxy Mode</h3>
+                    <p className="text-gray-400 text-xs font-bold uppercase tracking-wider">Take attendance for an absent teacher</p>
+                  </div>
+                </div>
+                <ArrowRight size={24} className="text-gray-400" />
+              </button>
 
             {/* CLASS CARDS */}
             <h2 className="font-black text-gray-900 text-lg pt-4">Class Breakdown</h2>
