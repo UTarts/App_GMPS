@@ -2,12 +2,36 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Loader2, Printer, ArrowLeft, Calendar } from 'lucide-react';
-import Link from 'next/link';
 
 // --- HELPER: Detect if Class is Junior ---
 const isJuniorClass = (className) => {
     const n = (className || '').toLowerCase();
     return n.includes('nursery') || n.includes('k1') || n.includes('k2') || n.includes('lkg') || n.includes('ukg') || n.includes('play');
+};
+
+// --- SMART FEATURE: Auto-Remark Engine ---
+const getAutoRemark = (percentage, customRemark) => {
+    // If a teacher entered a custom remark, always prioritize it.
+    if (customRemark && customRemark.trim() !== '') return customRemark;
+    
+    // Otherwise, intelligently assign a remark based on the percentage bracket.
+    const p = parseFloat(percentage) || 0;
+    
+    if (p >= 95) return "Outstanding performance. An exceptional grasp of concepts and a brilliant approach to learning.";
+    if (p >= 90) return "Excellent work. Consistent effort and deep understanding of the subjects are highly commendable.";
+    if (p >= 85) return "Very good progress. Dedication is evident, showing a keen and active interest in academic growth.";
+    if (p >= 80) return "Good performance. Hard work is clearly visible, and continued focus will unlock even greater potential.";
+    if (p >= 75) return "Commendable effort. A solid foundation has been built; consistent revision will easily elevate these results.";
+    if (p >= 70) return "A fair performance with much untapped potential. A little extra focused effort will yield wonderful results.";
+    if (p >= 65) return "Satisfactory progress. Dedicated revision time and consistent practice will surely improve these grades.";
+    if (p >= 60) return "Capable of much more. With regular practice and active class participation, significant improvement is certain.";
+    if (p >= 55) return "A stepping stone for growth. Building a steady study routine and seeking clarification will help true abilities shine.";
+    if (p >= 50) return "There is clear potential for better results. Dedicating more time to regular studies and assignments will make a big difference.";
+    if (p >= 45) return "This term presented challenges, but it is an opportunity to grow. Extra practice and guidance will help get things back on track.";
+    if (p >= 40) return "Current scores do not reflect true capability. With renewed focus, extra effort, and regular revision, improvements will follow.";
+    if (p >= 35) return "Academic challenges are present, but they can be overcome. A structured study schedule and determination will put success within reach.";
+    
+    return "A difficult hurdle has been encountered this term. With dedicated support from both school and home, this performance can absolutely be turned around.";
 };
 
 export default function PrintReportPage() {
@@ -55,7 +79,7 @@ export default function PrintReportPage() {
     const part2B = ['Regularity and Punctuality', 'Behaviour and Value', 'Attitude towards Teachers', 'Attitude towards School Mates'];
 
     return (
-        <div className="bg-gray-100 min-h-screen pb-10 flex flex-col">
+        <div className="bg-gray-100 min-h-screen pb-10 flex flex-col print:block print:bg-white print:pb-0">
             
             {/* FLOATING ACTION BAR (HIDDEN DURING PRINT) */}
             <div className="print:hidden sticky top-0 left-0 w-full bg-white shadow-md p-4 flex justify-between items-center z-50">
@@ -80,18 +104,16 @@ export default function PrintReportPage() {
             </div>
 
             {/* PRINTABLE PAGES WRAPPER */}
-            <div className="w-full overflow-x-auto pt-6 px-4 print:p-0 print:overflow-visible flex-1 custom-scrollbar">
+            <div className="w-full overflow-x-auto pt-6 px-4 print:p-0 print:overflow-visible print:block flex-1 custom-scrollbar">
                 
-                {/* CSS TO FORCE PERFECT A4 PRINTING AND HIDE APP NAVIGATION */}
+                {/* CSS TO FORCE PERFECT A4 PRINTING AND MULTI-PAGE FIX */}
                 <style dangerouslySetInnerHTML={{__html: `
                     @media print {
                         @page { size: A4 portrait; margin: 0; }
-                        body, html { margin: 0 !important; padding: 0 !important; background: white !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-                        body * { visibility: hidden; }
-                        #print-root, #print-root * { visibility: visible; }
-                        #print-root { position: absolute; top: 0; left: 0; width: 100%; }
+                        body, html { margin: 0 !important; padding: 0 !important; background: white !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; height: auto !important; }
                         nav, footer, aside, [class*="bottom-nav"], [class*="fixed bottom-0"] { display: none !important; }
-                        .page-break { page-break-after: always; page-break-inside: avoid; width: 210mm; height: 296.5mm; margin: 0 !important; box-shadow: none !important; border: none !important; position: relative; overflow: hidden; }
+                        .page-break { page-break-after: always; break-after: page; page-break-inside: avoid; width: 210mm; height: 296.5mm; margin: 0 !important; box-shadow: none !important; border: none !important; position: relative; overflow: hidden; }
+                        .page-break:last-child { page-break-after: auto; break-after: auto; }
                     }
                 `}} />
 
@@ -139,7 +161,7 @@ function JuniorReportCard({ data, card, reportDate, part2A, part2B }) {
                         </div>
                     </div>
                     
-                    {/* NEW: SESSION BADGE OPPOSITE LOGO */}
+                    {/* SESSION BADGE OPPOSITE LOGO */}
                     <div className="w-24 shrink-0 flex justify-end pt-2">
                         <div className="bg-cyan-100 text-cyan-900 text-[10px] font-black px-3 py-1.5 rounded-xl border-2 border-cyan-300 shadow-sm text-center leading-tight transform rotate-2">
                             SESSION<br/><span className="text-xs text-pink-600">2026-27</span>
@@ -154,7 +176,7 @@ function JuniorReportCard({ data, card, reportDate, part2A, part2B }) {
                         <div className="flex justify-between border-b-2 border-dotted border-pink-200 pb-0.5"><span>Class:</span> <span className="uppercase">{data.class_name}</span></div>
                         <div className="flex justify-between border-b-2 border-dotted border-pink-200 pb-0.5"><span>Father:</span> <span className="uppercase text-gray-700">Mr. {card.student.father_name}</span></div>
                         <div className="flex justify-between border-b-2 border-dotted border-pink-200 pb-0.5"><span>Roll No:</span> <span className="bg-white px-2 rounded-md border border-pink-200">{card.student.roll_no}</span></div>
-                        <div className="flex justify-between border-b-2 border-dotted border-pink-200 pb-0.5"><span>Mother:</span> <span className="uppercase text-gray-700">Mrs. {card.student.mother_name}</span></div>
+                        <div className="flex justify-between border-b-2 border-dotted border-pink-200 pb-0.5"><span>Mother:</span> <span className="uppercase text-gray-700">Ms. {card.student.mother_name}</span></div>
                         <div className="flex justify-between border-b-2 border-dotted border-pink-200 pb-0.5"><span>D.O.B:</span> <span className="text-cyan-700">{card.student.dob}</span></div>
                     </div>
                     {/* Bubbly Profile Photo */}
@@ -168,7 +190,7 @@ function JuniorReportCard({ data, card, reportDate, part2A, part2B }) {
                     <table className="w-full border-collapse text-center">
                         <thead>
                             <tr className="bg-cyan-100 text-cyan-900 font-black">
-                                <th className="p-2 text-left pl-4 text-sm border-b-2 border-r-2 border-cyan-200">📚 Learning Areas</th>
+                                <th className="p-2 text-left pl-4 text-sm border-b-2 border-r-2 border-cyan-200">✍️ Learning Areas</th>
                                 <th colSpan={data.is_ut ? "2" : "6"} className="p-2 text-sm border-b-2 border-cyan-200 uppercase">{data.exam_name} Performance</th>
                             </tr>
                             <tr className="bg-pink-100 text-[10px] uppercase font-black text-pink-900 leading-tight">
@@ -218,7 +240,7 @@ function JuniorReportCard({ data, card, reportDate, part2A, part2B }) {
                                 <td className="p-2 border-yellow-200"></td>
                             </tr>
                             <tr className="bg-yellow-200 uppercase font-black text-[11px] text-yellow-900 border-t border-yellow-300">
-                                <td className="p-2 text-left pl-4 border-r-2 border-yellow-300">🎯 Percentage</td>
+                                <td className="p-2 text-left pl-4 border-r-2 border-yellow-300">💯 Percentage</td>
                                 <td colSpan={data.is_ut ? "2" : "6"} className="p-2 text-left pl-4 text-purple-700 text-xs tracking-wider">
                                     {card.aggregates.percentage}%
                                 </td>
@@ -260,9 +282,13 @@ function JuniorReportCard({ data, card, reportDate, part2A, part2B }) {
                 {/* Fun Remarks & Attendance */}
                 <div className="border-[3px] border-dashed border-pink-300 rounded-2xl p-3 mb-6 mx-2 text-[13px] font-bold bg-white flex flex-col gap-1 shadow-sm">
                     <div className="flex justify-between">
-                        <span className="text-purple-900">Teacher's Remarks: <span className="text-pink-600 font-black ml-2 font-serif text-[15px] italic">"{card.metadata.remarks || 'Keep shining!'}"</span></span>
+                        <span className="text-purple-900">Teacher's Remarks: 
+                            <span className="text-pink-600 font-black ml-2 font-serif text-[14px] italic">
+                                "{getAutoRemark(card.aggregates.percentage, card.metadata.remarks)}"
+                            </span>
+                        </span>
                     </div>
-                    <div className="flex justify-between">
+                    <div className="flex justify-between mt-1">
                         <span className="text-purple-900">Attendance: <span className="text-cyan-700 ml-2 font-black">{card.metadata.attendance_present} / {card.metadata.attendance_total} Days</span></span>
                     </div>
                 </div>
@@ -320,7 +346,7 @@ function StandardReportCard({ data, card, reportDate, part2A, part2B }) {
                         </h2>
                     </div>
                     
-                    {/* NEW: SESSION BADGE OPPOSITE LOGO */}
+                    {/* SESSION BADGE OPPOSITE LOGO */}
                     <div className="w-20 shrink-0 flex justify-end pt-1">
                         <div className="text-right border-2 border-gray-200 bg-gray-50 px-2 py-1 rounded-lg shadow-sm">
                             <p className="text-[8px] font-bold text-gray-500 uppercase tracking-widest leading-none mb-1">Session</p>
@@ -334,9 +360,12 @@ function StandardReportCard({ data, card, reportDate, part2A, part2B }) {
                     <div className="grid grid-cols-2 gap-x-10 gap-y-2.5 text-[13px] font-bold text-gray-800 flex-1 pr-6 pt-2">
                         <div className="flex justify-between border-b border-gray-300 pb-0.5"><span>Student's Name:</span> <span className="uppercase text-blue-800">{card.student.name}</span></div>
                         <div className="flex justify-between border-b border-gray-300 pb-0.5"><span>Class/Section:</span> <span className="uppercase">{data.class_name}</span></div>
-                        <div className="flex justify-between border-b border-gray-300 pb-0.5"><span>Father's Name:</span> <span className="uppercase">{card.student.father_name}</span></div>
+                        
+                        {/* PREFIXES ADDED FOR PARENTS */}
+                        <div className="flex justify-between border-b border-gray-300 pb-0.5"><span>Father's Name:</span> <span className="uppercase">MR. {card.student.father_name}</span></div>
                         <div className="flex justify-between border-b border-gray-300 pb-0.5"><span>Roll No:</span> <span>{card.student.roll_no}</span></div>
-                        <div className="flex justify-between border-b border-gray-300 pb-0.5"><span>Mother's Name:</span> <span className="uppercase">{card.student.mother_name}</span></div>
+                        <div className="flex justify-between border-b border-gray-300 pb-0.5"><span>Mother's Name:</span> <span className="uppercase">MS. {card.student.mother_name}</span></div>
+                        
                         <div className="flex justify-between border-b border-gray-300 pb-0.5"><span>D.O.B:</span> <span>{card.student.dob}</span></div>
                     </div>
                     
@@ -454,9 +483,13 @@ function StandardReportCard({ data, card, reportDate, part2A, part2B }) {
                 {/* REMARKS & ATTENDANCE */}
                 <div className="border border-black p-3 mb-8 text-[13px] font-bold bg-gray-50 flex flex-col gap-1.5 mx-4">
                     <div className="flex justify-between">
-                        <span>Class Teacher's Remarks: <span className="text-blue-800 font-black ml-2 font-serif text-[15px] italic">{card.metadata.remarks || '-'}</span></span>
+                        <span>Class Teacher's Remarks: 
+                            <span className="text-blue-800 font-black ml-2 font-serif text-[14px] italic">
+                                {getAutoRemark(card.aggregates.percentage, card.metadata.remarks)}
+                            </span>
+                        </span>
                     </div>
-                    <div className="flex justify-between">
+                    <div className="flex justify-between mt-1">
                         <span>Attendance: <span className="text-blue-800 ml-2 font-black">{card.metadata.attendance_present} / {card.metadata.attendance_total}</span></span>
                     </div>
                 </div>

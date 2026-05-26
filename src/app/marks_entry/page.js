@@ -2,7 +2,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { useAuth } from "../../context/AuthContext";
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, Save, CheckCircle2, AlertCircle, Loader2, UserX } from 'lucide-react';
+import { ArrowLeft, Save, CheckCircle2, AlertCircle, Loader2, UserX, BookOpen } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 // Helper: Custom Select Dropdown
@@ -87,16 +87,27 @@ function StudentMarkRow({ student, studentIndex, examId, subjectCode, isUT, clas
         setMarks(prev => ({ ...prev, [field]: num }));
     };
 
-    // MAGIC: Auto-jump to next row on Enter Key
+    // SMART FEATURE: Enhanced Navigation with Smooth Scrolling
     const handleKeyDown = (e, field) => {
-        if (e.key === 'Enter') {
-            e.preventDefault(); // Prevent form submission or jumping randomly
-            const nextInput = document.getElementById(`input_${field}_${studentIndex + 1}`);
+        let targetId = null;
+
+        if (e.key === 'Enter' || e.key === 'ArrowDown') {
+            e.preventDefault(); 
+            targetId = `input_${field}_${studentIndex + 1}`;
+        } else if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            targetId = `input_${field}_${studentIndex - 1}`;
+        }
+
+        if (targetId) {
+            const nextInput = document.getElementById(targetId);
             if (nextInput) {
                 nextInput.focus();
-                nextInput.select(); // Highlights the text in the next box so they can just type over it
-            } else {
-                e.target.blur(); // If it's the last student, just blur to trigger the save
+                nextInput.select(); 
+                // Scrolls the targeted input into the center of the viewport smoothly
+                nextInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            } else if (e.key === 'Enter') {
+                e.target.blur(); // Triggers save if it's the very last student
             }
         }
     };
@@ -151,7 +162,8 @@ function StudentMarkRow({ student, studentIndex, examId, subjectCode, isUT, clas
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [marks.is_absent]);
 
-    const InputCell = ({ field, max }) => (
+    // FIX: Render function instead of functional component prevents React from destroying and recreating the DOM element
+    const renderInput = (field, max) => (
         <input 
             id={`input_${field}_${studentIndex}`}
             type="number" 
@@ -168,7 +180,7 @@ function StudentMarkRow({ student, studentIndex, examId, subjectCode, isUT, clas
     );
 
     return (
-        <div className={`flex items-center border-b border-gray-100 dark:border-gray-800 transition-colors ${marks.is_absent ? 'bg-red-50/50 dark:bg-red-900/10' : 'hover:bg-gray-50 dark:hover:bg-[#1a1a1a]'}`}>
+        <div className={`flex items-center border-b border-gray-100 dark:border-gray-800 transition-colors focus-within:bg-blue-50/30 dark:focus-within:bg-blue-900/10 ${marks.is_absent ? 'bg-red-50/50 dark:bg-red-900/10' : 'hover:bg-gray-50 dark:hover:bg-[#1a1a1a]'}`}>
             
             {/* Left: Sticky Student Info */}
             <div className="w-40 shrink-0 p-3 bg-white dark:bg-[#151515] sticky left-0 z-10 border-r border-gray-100 dark:border-gray-800 flex items-center justify-between shadow-[4px_0_10px_rgba(0,0,0,0.02)]">
@@ -187,13 +199,13 @@ function StudentMarkRow({ student, studentIndex, examId, subjectCode, isUT, clas
             {/* Right: Spreadsheet Cells */}
             <div className="flex-1 flex min-w-max divide-x divide-gray-100 dark:divide-gray-800">
                 {isUT ? (
-                    <div className="w-20 shrink-0"><InputCell field="exam" max={20} /></div>
+                    <div className="w-20 shrink-0">{renderInput('exam', 20)}</div>
                 ) : (
                     <>
-                        <div className="w-16 shrink-0"><InputCell field="pt" max={10} /></div>
-                        <div className="w-16 shrink-0"><InputCell field="nb" max={5} /></div>
-                        <div className="w-16 shrink-0"><InputCell field="se" max={5} /></div>
-                        <div className="w-16 shrink-0"><InputCell field="exam" max={80} /></div>
+                        <div className="w-16 shrink-0">{renderInput('pt', 10)}</div>
+                        <div className="w-16 shrink-0">{renderInput('nb', 5)}</div>
+                        <div className="w-16 shrink-0">{renderInput('se', 5)}</div>
+                        <div className="w-16 shrink-0">{renderInput('exam', 80)}</div>
                     </>
                 )}
 
@@ -322,7 +334,6 @@ export default function MarksEntryPage() {
                 ) : (
                     <div className="bg-white dark:bg-[#151515] rounded-2xl shadow-xl border border-gray-200 dark:border-gray-800 overflow-hidden mt-2">
                         
-                        {/* FIX: Moved Header INSIDE the overflow container so it scrolls in sync, and added pb-32 so bottom nav doesn't block it */}
                         <div className="overflow-x-auto custom-scrollbar relative pb-32">
                             <div className="min-w-max">
                                 

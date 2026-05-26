@@ -432,7 +432,7 @@ export default function Home() {
                            <p className="text-emerald-100 text-[11px] uppercase tracking-widest font-bold mb-1">Register</p>
                            <h3 className="text-2xl font-black text-white leading-none">Attendance</h3>
                         </Link>
-                        <Link href="/teacher?tab=marks" className="h-[4.5rem] bg-gradient-to-r from-[#FBBF24] to-[#D97706] rounded-[1.5rem] p-4 flex items-center justify-center shadow-md active:scale-95 transition-transform gap-3">
+                        <Link href="/marks_entry" className="h-[4.5rem] bg-gradient-to-r from-[#FBBF24] to-[#D97706] rounded-[1.5rem] p-4 flex items-center justify-center shadow-md active:scale-95 transition-transform gap-3">
                            <h3 className="text-lg font-black text-white tracking-wide">Marks Entry</h3>
                            <FileSpreadsheet size={20} className="text-orange-200" />
                         </Link>
@@ -685,13 +685,12 @@ export default function Home() {
                           <Bell size={20} />
                        </div>
                     )}
-                    <div className="flex-1">
+                    <div className="flex-1 min-w-0">
                         <div className="flex justify-between items-start">
                            <h4 className="text-sm font-bold text-gray-900 dark:text-white leading-tight mb-1">{ann.title}</h4>
                            <span className="text-[9px] font-bold text-orange-500 bg-orange-50 dark:bg-orange-900/30 px-2 py-0.5 rounded-full">NOTICE</span>
                         </div>
-                        <p className="text-xs text-gray-500 dark:text-gray-400 line-clamp-2 mt-0.5">{ann.content}</p>
-                    </div>
+                        <div className="text-xs text-gray-500 dark:text-gray-400 line-clamp-2 mt-0.5 [&>p]:inline" dangerouslySetInnerHTML={{ __html: (ann.content || '').replace(/&nbsp;/g, ' ') }} />                    </div>
                 </div>
             ))}
 
