@@ -214,14 +214,35 @@ function CollectTab({ token, showModal }) {
 
       {loadingDues && <div className="flex justify-center py-10"><Spinner size={24}/></div>}
 
+      {/* Arrears Banner */}
+      {dues && dues.arrears?.length > 0 && (
+        <div className="bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 rounded-2xl p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <AlertCircle size={15} className="text-red-500 flex-shrink-0"/>
+            <p className="text-xs font-bold text-red-600 dark:text-red-400 uppercase tracking-wide">Previous Session Dues</p>
+          </div>
+          {dues.arrears.map(a => (
+            <div key={a.session} className="flex items-center justify-between py-1.5 border-t border-red-100 dark:border-red-900 first:border-0">
+              <p className="text-sm text-red-700 dark:text-red-300">Session {a.session}</p>
+              <p className="font-bold text-red-600 dark:text-red-400">{fmt(a.amount_pending)}</p>
+            </div>
+          ))}
+          <div className="flex items-center justify-between pt-2 mt-1 border-t-2 border-red-200 dark:border-red-700">
+            <p className="text-sm font-bold text-red-700 dark:text-red-300">Total Arrears</p>
+            <p className="text-lg font-bold text-red-600">{fmt(dues.summary?.arrears)}</p>
+          </div>
+        </div>
+      )}
+
       {dues && (
         <>
           {/* Summary */}
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-2 gap-2">
             {[
               { l:'Total Due', v: dues.summary?.total_due, c:'text-gray-700 dark:text-gray-200', bg:'bg-gray-100 dark:bg-gray-800' },
               { l:'Paid', v: dues.summary?.total_paid, c:'text-green-700 dark:text-green-400', bg:'bg-green-50 dark:bg-green-900/30' },
-              { l:'Balance', v: dues.summary?.balance, c:'text-red-600 dark:text-red-400', bg:'bg-red-50 dark:bg-red-900/30' },
+              { l:'Balance (This Session)', v: dues.summary?.balance, c:'text-red-600 dark:text-red-400', bg:'bg-red-50 dark:bg-red-900/30' },
+              { l:'Grand Total Due', v: dues.summary?.grand_total, c:'text-red-700 dark:text-red-400 font-extrabold', bg:'bg-red-100 dark:bg-red-900/50' },
             ].map(k=>(
               <div key={k.l} className={`${k.bg} rounded-2xl p-3 text-center`}>
                 <p className="text-[10px] text-gray-500 dark:text-gray-400 mb-1">{k.l}</p>
@@ -689,6 +710,9 @@ function FeeSetupTab({ token, showModal }) {
         </div>
       </div>
 
+      {/* Fee Heads Manager */}
+      <FeeHeadManager token={token} showModal={showModal} />
+
       {/* Generate invoices */}
       <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-800 p-4">
         <p className="text-sm font-bold text-gray-800 dark:text-white mb-1">Generate Monthly Invoices</p>
@@ -709,6 +733,71 @@ function FeeSetupTab({ token, showModal }) {
           </button>
         </form>
       </div>
+    </div>
+  );
+}
+
+// ─── FEE HEAD MANAGER ─────────────────────────────────────────────────────
+function FeeHeadManager({ token, showModal }) {
+  const [heads, setHeads]   = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [form, setForm]     = useState({ name: '', type: 'monthly' });
+  const [saving, setSaving] = useState(false);
+
+  const loadHeads = useCallback(() => {
+    feeApi.getFeeHeads(token).then(r => setHeads(r.fee_heads || [])).catch(console.error).finally(() => setLoading(false));
+  }, [token]);
+
+  useEffect(() => { loadHeads(); }, [loadHeads]);
+
+  async function save(e) {
+    e.preventDefault();
+    if (!form.name.trim()) return;
+    setSaving(true);
+    try {
+      await feeApi.saveFeeHead(token, form);
+      showModal('Saved ✅', `Fee head "${form.name}" added.`, 'success');
+      setForm({ name: '', type: 'monthly' });
+      loadHeads();
+    } catch(e) { showModal('Error', e.message, 'danger'); }
+    finally { setSaving(false); }
+  }
+
+  const typeColors = { monthly: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300', yearly: 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300', one_time: 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300' };
+
+  return (
+    <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-800 p-4 space-y-3">
+      <div className="flex items-center gap-2">
+        <BookOpen size={15} className="text-gray-500"/>
+        <p className="text-sm font-bold text-gray-800 dark:text-white">Fee Heads</p>
+        <span className="text-xs text-gray-400">(Superadmin can add)</span>
+      </div>
+      {loading ? <Spinner size={14}/> : (
+        <div className="flex flex-wrap gap-2">
+          {heads.map(h => (
+            <span key={h.id} className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold ${typeColors[h.type] || 'bg-gray-100 text-gray-600'}`}>
+              {h.name}
+            </span>
+          ))}
+          {heads.length === 0 && <p className="text-xs text-gray-400">No fee heads yet.</p>}
+        </div>
+      )}
+      <form onSubmit={save} className="flex gap-2 flex-wrap items-end pt-1">
+        <input value={form.name} onChange={e => setForm(f => ({...f, name: e.target.value}))}
+          placeholder="New fee head name…" required
+          className="flex-1 min-w-0 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-orange-400 text-gray-900 dark:text-white"
+        />
+        <select value={form.type} onChange={e => setForm(f => ({...f, type: e.target.value}))}
+          className="w-28 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl px-3 py-2.5 text-sm text-gray-800 dark:text-white outline-none">
+          <option value="monthly">Monthly</option>
+          <option value="yearly">Yearly</option>
+          <option value="one_time">One-time</option>
+        </select>
+        <button type="submit" disabled={saving}
+          className="px-4 py-2.5 bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 disabled:opacity-50 text-white font-bold rounded-xl text-sm flex items-center gap-1.5 active:scale-95 transition-all">
+          {saving ? <Spinner size={12}/> : <Settings2 size={14}/>} Add
+        </button>
+      </form>
     </div>
   );
 }
