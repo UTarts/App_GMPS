@@ -15,9 +15,14 @@ import {
   Library, Bus, CalendarDays, BarChart3, CalendarRange, 
   Gift, Book, Download, GraduationCap, Megaphone, HelpCircle, 
   Trophy, PhoneCall, NotebookPen, FileSpreadsheet, Activity, Wallet, ExternalLink, 
-  MessageSquare, Film, Lock, UploadCloud, LibraryBig
+  MessageSquare, Film, Lock, UploadCloud, LibraryBig, BookMarked, IndianRupee, AlertCircle, TrendingUp,
+   ShieldAlert, ChevronRight, RefreshCw, PieChart, Pie, Cell
 } from 'lucide-react';
 import Link from 'next/link';
+import {
+   BarChart, Bar, XAxis, YAxis, CartesianGrid,
+   Tooltip, ResponsiveContainer
+ } from 'recharts';
 import BirthdaySection from '../components/BirthdaySection';
 
 export default function Home() {
@@ -33,6 +38,13 @@ export default function Home() {
 
   const [suggestion, setSuggestion] = useState("");
   const [sendingSuggestion, setSendingSuggestion] = useState(false);
+
+  // --- ACCOUNTANT DASHBOARD STATE ---
+const [finStats, setFinStats] = useState(null);
+const [finChart, setFinChart] = useState([]);
+const [finClassData, setFinClassData] = useState([]);
+const [finLoading, setFinLoading] = useState(false);
+const [finRefreshing, setFinRefreshing] = useState(false);
 
   // --- MOCK DATA FOR THE CREATIVE BENTO (Will be replaced by API later) ---
   const mockFeeDue = "4,500";
@@ -105,6 +117,42 @@ export default function Home() {
     if (user) fetchData(); 
   }, [user]);
 
+  // --- 3b. ACCOUNTANT DASHBOARD FETCH ---
+const fetchFinDashboard = async (isRefresh = false) => {
+   if (isRefresh) setFinRefreshing(true);
+   else setFinLoading(true);
+   try {
+     const token = (() => {
+       try { return JSON.parse(localStorage.getItem('gmps_user') || '{}')?.token || ''; }
+       catch { return ''; }
+     })();
+     const res = await fetch(
+       `${process.env.NEXT_PUBLIC_API_URL}/fin_api.php?action=get_dashboard_stats`,
+       { headers: { 'Authorization': `Bearer ${token}` } }
+     );
+     let text = await res.text();
+     try {
+       const f = text.indexOf('{'), l = text.lastIndexOf('}');
+       if (f !== -1 && l !== -1) text = text.substring(f, l + 1);
+       const json = JSON.parse(text);
+       if (json.success) {
+         setFinStats(json.stats);
+         setFinChart(json.chart || []);
+         setFinClassData(json.class_data || []);
+       }
+     } catch { /* silent */ }
+   } catch { /* silent */ }
+   finally {
+     if (isRefresh) setFinRefreshing(false);
+     else setFinLoading(false);
+   }
+ };
+ 
+ useEffect(() => {
+   if (isAccountant && user) fetchFinDashboard();
+   // eslint-disable-next-line react-hooks/exhaustive-deps
+ }, [user, activeSession]);
+ 
   // --- 4. SLIDESHOW TIMER ---
   useEffect(() => {
     if (!data?.slides || data.slides.length === 0) return;
@@ -164,14 +212,18 @@ export default function Home() {
   };
 
   // --- LOGIC HELPERS ---
-  const getCardStyle = () => {
-    if (user?.role === 'admin') return "from-slate-800 to-black"; 
-    if (user?.role === 'teacher') return "from-indigo-600 to-purple-600"; 
-    return "from-orange-500 to-red-500"; 
-  };
+  const isAccountant = user?.role === 'admin' && user?.level == 3;
 
-  const getBadgeText = () => {
-    if (user?.role === 'admin') return user?.level == 1 ? 'Super Admin' : 'Admin';
+const getCardStyle = () => {
+  if (isAccountant) return "from-emerald-700 to-teal-800";
+  if (user?.role === 'admin') return "from-slate-800 to-black";
+  if (user?.role === 'teacher') return "from-indigo-600 to-purple-600";
+  return "from-orange-500 to-red-500";
+};
+
+const getBadgeText = () => {
+   if (user?.role === 'admin' && user?.level == 3) return 'Accountant';
+   if (user?.role === 'admin') return user?.level == 1 ? 'Super Admin' : 'Admin';
     if (user?.role === 'teacher') {
       if (data?.user_details?.class_name) return data.user_details.class_name;
       return 'Subject Teacher';
@@ -287,23 +339,20 @@ export default function Home() {
         </div>
       </div>
 
-      {/* ======================================================== */}
+            {/* ======================================================== */}
       {/* --- CREATIVE BENTO DASHBOARD (SKETCH INSPIRED) --- */}
       {/* ======================================================== */}
       <div className="px-4 mb-10 mt-2">
-         
+
          {/* ------------------------------------------------ */}
          {/* 1. STUDENT DASHBOARD */}
          {/* ------------------------------------------------ */}
          {(user?.role === 'student' || !user?.role) && (
             <div className="space-y-6">
                
-               {/* --- THE CREATIVE 'CORE ESSENTIALS' BENTO --- */}
                <div>
                   <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3 ml-1">Core Essentials</h3>
                   <div className="grid grid-cols-2 gap-3 h-[18rem]">
-                     
-                     {/* 1. Top Wide Card (Work) */}
                      <Link href="/work?source=twa" className="col-span-2 bg-gradient-to-r from-[#A3E635] to-[#84CC16] rounded-[2rem] p-5 flex items-center justify-between shadow-md shadow-lime-500/20 active:scale-95 transition-transform">
                         <div>
                            <h3 className="text-3xl font-black text-white leading-none">Daily Work</h3>
@@ -313,16 +362,12 @@ export default function Home() {
                            <BookOpen size={28} />
                         </div>
                      </Link>
-
-                     {/* 2. Left Tall Card (Fees) */}
                      <Link href="/fees" className="col-span-1 bg-gradient-to-b from-[#FDBA74] to-[#F97316] rounded-[2rem] p-5 flex flex-col justify-between shadow-md shadow-orange-500/20 active:scale-95 transition-transform relative overflow-hidden">
                         <div className="relative z-10 flex flex-col items-center pt-2">
                            <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center text-white backdrop-blur-md shrink-0 mb-3">
                               <CreditCard size={20} />
                            </div>
-                           <h3 className="text-[26px] font-black text-white tracking-wide">
-                              Fees
-                           </h3>
+                           <h3 className="text-[26px] font-black text-white tracking-wide">Fees</h3>
                         </div>
                         <div className="relative z-10 mt-auto text-center bg-white/20 backdrop-blur-sm rounded-xl py-2 px-1 border border-white/20">
                            <p className="text-orange-100 text-[9px] uppercase tracking-widest font-bold mb-0.5">Due</p>
@@ -330,29 +375,21 @@ export default function Home() {
                         </div>
                         <CreditCard className="absolute -bottom-6 -right-6 w-32 h-32 text-white opacity-20 transform -rotate-12 pointer-events-none" />
                      </Link>
-
-                     {/* Right Side Stack */}
                      <div className="col-span-1 flex flex-col gap-3">
-                        
-                        {/* 3. Perfect Circle Card (Attendance) */}
                         <Link href="/profile" className="flex-1 rounded-[2rem] bg-gradient-to-br from-[#2DD4BF] to-[#0F766E] flex flex-col items-center justify-center shadow-md shadow-teal-500/20 active:scale-95 transition-transform p-4 text-center relative overflow-hidden">
                            <CheckCircle2 size={24} className="text-teal-200 mb-2 relative z-10" />
                            <p className="text-teal-100 text-[11px] uppercase tracking-widest font-bold mb-1 relative z-10">Attendance</p>
                            <h3 className="text-4xl font-black text-white leading-none relative z-10">{mockAttendance}</h3>
                            <div className="absolute top-0 right-0 w-16 h-16 bg-white/10 rounded-full blur-xl pointer-events-none"></div>
                         </Link>
-
-                        {/* 4. Bottom Rectangle Card (Results) */}
                         <Link href="/results" className="h-[4.5rem] bg-gradient-to-r from-[#22C55E] to-[#15803D] rounded-[1.5rem] p-4 flex items-center justify-center gap-2 shadow-md shadow-green-500/20 active:scale-95 transition-transform">
                            <FileSpreadsheet size={20} className="text-green-200" />
                            <h3 className="text-xl font-black text-white tracking-wide">Results</h3>
                         </Link>
                      </div>
-
                   </div>
                </div>
                
-               {/* --- CAMPUS TOOLS GRID (Untouched Icons as requested) --- */}
                <div>
                   <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest pt-3 mb-3 ml-1">Campus Tools</h3>
                   <div className="bg-white dark:bg-[#151515] border border-gray-100 dark:border-gray-800 rounded-[2rem] p-5 shadow-sm">
@@ -361,17 +398,14 @@ export default function Home() {
                         <ToolAppIcon title="Timetable" icon={Clock} link="/profile" iconColor="text-indigo-500" />
                         <ToolAppIcon title="Video Lect." icon={PlayCircle} link="/virtual-class" iconColor="text-sky-500" />
                         <ToolAppIcon title="Live Class" icon={MonitorPlay} link="/virtual-class" iconColor="text-red-500" />
-                        
                         <ToolAppIcon title="Assignments" icon={PenTool} link="/assignments" iconColor="text-teal-500" />
                         <ToolAppIcon title="Syllabus" icon={Book} link="/syllabus" iconColor="text-fuchsia-500" />
                         <ToolAppIcon title="Notes" icon={NotebookPen} link="#" iconColor="text-amber-500" />
                         <ToolAppIcon title="Events" icon={CalendarRange} link="/events?source=twa" iconColor="text-pink-500" />
-                        
                         <ToolAppIcon title="Exam Sched." icon={CalendarDays} link="#" iconColor="text-red-500" />
                         <ToolAppIcon title="Library" icon={LibraryBig} link="/library" iconColor="text-blue-600" />
                         <ToolAppIcon title="Transport" icon={Bus} link="#" iconColor="text-slate-600" />
                         <ToolAppIcon title="Apply Leave" icon={CalendarMinus} link="/apply-leave" iconColor="text-purple-500" />
-                        
                         <ToolAppIcon title="My Rank" icon={Trophy} link="#" iconColor="text-yellow-500" />
                         <ToolAppIcon title="Downloads" icon={Download} link="#" iconColor="text-gray-500" />
                         <ToolAppIcon title="Calendar" icon={CalendarDays} link="/calendar" iconColor="text-purple-600" />
@@ -387,13 +421,9 @@ export default function Home() {
          {/* ------------------------------------------------ */}
          {user?.role === 'teacher' && (
             <div className="space-y-6">
-               
-               {/* Creative Bento for Teachers */}
                <div>
                   <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3 ml-1">Core Essentials</h3>
                   <div className="grid grid-cols-2 gap-3 h-[18rem]">
-                     
-                     {/* 1. UPLOAD WORK (Full Width) */}
                      <Link href="/work_upload" className="col-span-2 bg-gradient-to-r from-[#818CF8] to-[#4F46E5] rounded-[2rem] p-5 flex items-center justify-between shadow-md active:scale-95 transition-transform">
                         <div>
                            <h3 className="text-3xl font-black text-white leading-none">Upload Work</h3>
@@ -403,9 +433,7 @@ export default function Home() {
                            <UploadCloud size={28} />
                         </div>
                      </Link>
-
-                     {/* 2. MY STUDENTS (Tall Card - Locked for Subject Teachers) */}
-                     <Link href={user?.assigned_class_id ? "/teacher?tab=my_students" : "#"} 
+                     <Link href={user?.assigned_class_id ? "/teacher?tab=my_students" : "#"}
                            onClick={(e) => { if(!user?.assigned_class_id) e.preventDefault(); }}
                            className={`col-span-1 bg-gradient-to-b from-[#FDA4AF] to-[#E11D48] rounded-[2rem] p-5 flex flex-col justify-between shadow-md relative overflow-hidden ${user?.assigned_class_id ? 'active:scale-95 transition-transform' : 'opacity-70 cursor-not-allowed'}`}>
                         <div className="relative z-10 flex flex-col items-center h-full pt-2">
@@ -415,8 +443,6 @@ export default function Home() {
                            </div>
                         </div>
                         <Users className="absolute -bottom-6 -right-6 w-32 h-32 text-white opacity-20 transform -rotate-12 pointer-events-none" />
-                        
-                        {/* Lock Overlay for Subject Teachers */}
                         {!user?.assigned_class_id && (
                             <div className="absolute inset-0 bg-black/30 backdrop-blur-[2px] z-20 flex flex-col items-center justify-center rounded-[2rem]">
                                 <Lock className="text-white opacity-80 mb-1" size={28}/>
@@ -424,8 +450,6 @@ export default function Home() {
                             </div>
                         )}
                      </Link>
-
-                     {/* 3. ATTENDANCE & MARKS (Stacked) */}
                      <div className="col-span-1 flex flex-col gap-3">
                         <Link href="/attendance?source=twa" className="flex-1 rounded-[2rem] bg-gradient-to-br from-[#34D399] to-[#059669] flex flex-col items-center justify-center shadow-md active:scale-95 transition-transform p-4 text-center">
                             <CheckCircle2 size={24} className="text-teal-200 mb-2 relative z-10" />
@@ -439,35 +463,25 @@ export default function Home() {
                      </div>
                   </div>
                </div>
-
-               {/* Teacher Tools Grid */}
                <div>
                   <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3 ml-1">Staff Tools</h3>
                   <div className="bg-white dark:bg-[#151515] border border-gray-100 dark:border-gray-800 rounded-[2rem] p-5 shadow-sm">
                      <div className="grid grid-cols-4 gap-y-6 gap-x-2">
-                        {/* Top Row */}
                         <ToolAppIcon title="My Atten." icon={UserCheck} link="/teacher/my-attendance" iconColor="text-green-500" />
                         <ToolAppIcon title="Notices" icon={Bell} link="/events?tab=notices" iconColor="text-rose-500" />
                         <ToolAppIcon title="Events" icon={CalendarRange} link="/events?tab=timeline" iconColor="text-pink-500" />
                         <ToolAppIcon title="Timetable" icon={Clock} link="/teacher?tab=timetable" iconColor="text-indigo-500" />
-                        
-                        {/* Second Row */}
                         <ToolAppIcon title="Gallery" icon={ImageIcon} link="/gallery" iconColor="text-purple-500" />
                         <ToolAppIcon title="Reels" icon={Film} link="/gallery?tab=reels" iconColor="text-red-500" />
                         <ToolAppIcon title="Apply Leave" icon={CalendarMinus} link="/apply-leave" iconColor="text-orange-500" />
                         <ToolAppIcon title="Ac. Calendar" icon={CalendarDays} link="/calendar" iconColor="text-purple-600" />
-
-                        {/* Third Row */}
                         <ToolAppIcon title="Toppers" icon={Award} link="/teacher?tab=toppers" iconColor="text-amber-500" />
                         <ToolAppIcon title="Report Cards" icon={FileText} link="/teacher?tab=report_cards" iconColor="text-blue-500" />
                         <ToolAppIcon title="Post history" icon={Clock} link="/work_history" iconColor="text-cyan-500" />
                         <ToolAppIcon title="My Profile" icon={User} link="/teacher" iconColor="text-slate-600" />
-
-                        {/* Fourth Row (Future Features) */}
                         <ToolAppIcon title="Syllabus" icon={Book} link="/syllabus" iconColor="text-fuchsia-500" />
                         <ToolAppIcon title="Virtual Class" icon={MonitorPlay} link="/virtual-class" iconColor="text-red-500" />
                         <ToolAppIcon title="Payslips" icon={Wallet} link="#" iconColor="text-emerald-600" />
-
                         <ToolAppIcon title="Assignments" icon={PenTool} link="/assignments" iconColor="text-teal-500" />
                         <ToolAppIcon title="Library" icon={LibraryBig} link="/library" iconColor="text-blue-600" />
                      </div>
@@ -476,17 +490,30 @@ export default function Home() {
             </div>
          )}
 
+                  {/* ------------------------------------------------ */}
+         {/* 3. ACCOUNTANT DASHBOARD */}
          {/* ------------------------------------------------ */}
-         {/* 3. ADMIN DASHBOARD */}
+         {isAccountant && (
+            <AccountantFinanceDashboard
+               stats={finStats}
+               chart={finChart}
+               classData={finClassData}
+               loading={finLoading}
+               refreshing={finRefreshing}
+               onRefresh={() => fetchFinDashboard(true)}
+               activeSession={activeSession}
+            />
+         )}
+
          {/* ------------------------------------------------ */}
-         {user?.role === 'admin' && (
+         {/* 4. ADMIN DASHBOARD (Level 1 & 2 only, NOT accountant) */}
+         {/* ------------------------------------------------ */}
+         {user?.role === 'admin' && !isAccountant && (
             <div className="space-y-6">
                
                <div>
                   <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3 ml-1">Management</h3>
                   <div className="grid grid-cols-2 gap-3 h-[18rem]">
-                     
-                     {/* UNLOCKED: BROADCAST */}
                      <Link href="/admin/posts" className="col-span-2 bg-gradient-to-r from-[#FCA5A5] to-[#E11D48] rounded-[2rem] p-5 flex items-center justify-between shadow-md active:scale-95 transition-transform">
                         <div>
                            <h3 className="text-3xl font-black text-white leading-none">Broadcast</h3>
@@ -496,8 +523,6 @@ export default function Home() {
                            <Megaphone size={28} />
                         </div>
                      </Link>
-
-                     {/* UNLOCKED: STUDENTS */}
                      <Link href="/admin?tab=students" className="col-span-1 bg-gradient-to-b from-[#7DD3FC] to-[#0284C7] rounded-[2rem] p-5 flex flex-col justify-between shadow-md active:scale-95 transition-transform relative overflow-hidden">
                         <div className="relative z-10 flex flex-col items-center h-full pt-2">
                            <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center text-white backdrop-blur-md shrink-0"><GraduationCap size={20} /></div>
@@ -507,10 +532,7 @@ export default function Home() {
                         </div>
                         <GraduationCap className="absolute -bottom-6 -right-6 w-32 h-32 text-white opacity-20 transform -rotate-12 pointer-events-none" />
                      </Link>
-
                      <div className="col-span-1 flex flex-col gap-3">
-                        
-                        {/* LOCKED: TEACHERS */}
                         <Link 
                             href={user?.level == 1 ? "/admin?tab=teachers" : "#"} 
                             onClick={(e) => { if(user?.level != 1) { e.preventDefault(); alert("Super Admin Only"); } }}
@@ -521,8 +543,6 @@ export default function Home() {
                            <h3 className="text-2xl font-black text-white leading-none">Teachers</h3>
                            {user?.level != 1 && <div className="absolute inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center rounded-[2rem]"><Lock size={24} className="text-white opacity-80" /></div>}
                         </Link>
-                        
-                        {/* LOCKED: FEES */}
                         <Link 
                             href={user?.level == 1 ? "/admin?tab=fees" : "#"} 
                             onClick={(e) => { if(user?.level != 1) { e.preventDefault(); alert("Super Admin Only"); } }}
@@ -538,16 +558,11 @@ export default function Home() {
                   </div>
                </div>
 
-               {/* Admin Tools Grid */}
                <div>
                   <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3 ml-1">Admin Tools</h3>
                   <div className="bg-white dark:bg-[#151515] border border-gray-100 dark:border-gray-800 rounded-[2rem] p-5 shadow-sm">
                      <div className="grid grid-cols-4 gap-y-6 gap-x-2">
-                        
-                        {/* UNLOCKED TOOL */}
                         <ToolAppIcon title="Settings" icon={Settings} link="/settings" iconColor="text-gray-600" />
-
-                        {/* EXPLICITLY LOCKED TOOLS (Everything else) */}
                         <div onClick={(e) => { if(user?.level != 1) { e.preventDefault(); alert("Super Admin Only"); } }}>
                             <ToolAppIcon title="Events" icon={CalendarRange} link={user?.level == 1 ? "/events?source=twa" : "#"} iconColor={user?.level == 1 ? "text-orange-500" : "text-gray-400"} />
                         </div>
@@ -582,7 +597,7 @@ export default function Home() {
                             <ToolAppIcon title="Expenses" icon={CreditCard} link={user?.level == 1 ? "/admin?tab=expenses" : "#"} iconColor={user?.level == 1 ? "text-emerald-600" : "text-gray-400"} />
                         </div>
                         <div onClick={(e) => { if(user?.level != 1) { e.preventDefault(); alert("Super Admin Only"); } }}>
-                            <ToolAppIcon title="Today's Attendance" icon={UserCheck} link={user?.level == 1 ? "/admin/attendance" : "#"} iconColor={user?.level == 1 ? "text-red-500" : "text-red-400"} />
+                            <ToolAppIcon title="Today's Att." icon={UserCheck} link={user?.level == 1 ? "/admin/attendance" : "#"} iconColor={user?.level == 1 ? "text-red-500" : "text-red-400"} />
                         </div>
                      </div>
                   </div>
@@ -935,4 +950,250 @@ function HomeSkeleton() {
         <div className="h-48 rounded-[1.5rem] bg-gray-200 dark:bg-gray-800 skeleton w-full mt-6" />
     </div>
   )
+}
+// ─────────────────────────────────────────────────────────────────────────────
+// ACCOUNTANT FINANCE DASHBOARD
+// ─────────────────────────────────────────────────────────────────────────────
+const fmt = (n) => Number(n || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 });
+
+function FinTooltip({ active, payload, label }) {
+  if (!active || !payload?.length) return null;
+  return (
+    <div className="bg-white dark:bg-[#1e1e1e] border border-gray-100 dark:border-neutral-700 rounded-2xl px-4 py-3 shadow-xl">
+      <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">{label}</p>
+      <p className="text-base font-black text-emerald-600">₹{fmt(payload[0].value)}</p>
+    </div>
+  );
+}
+
+function AccountantFinanceDashboard({ stats, chart, classData, loading, refreshing, onRefresh, activeSession }) {
+  const collected   = stats?.total_collected    || 0;
+  const outstanding = stats?.total_outstanding  || 0;
+  const total       = collected + outstanding   || 1;
+  const collectionPct = Math.min(100, (collected / total) * 100);
+
+
+  if (loading) return (
+    <div className="space-y-4 animate-pulse">
+      <div className="h-40 bg-gray-200 dark:bg-gray-800 rounded-[2rem]" />
+      <div className="grid grid-cols-3 gap-3">
+        {[...Array(3)].map((_, i) => <div key={i} className="h-24 bg-gray-200 dark:bg-gray-800 rounded-[1.5rem]" />)}
+      </div>
+      <div className="h-56 bg-gray-200 dark:bg-gray-800 rounded-[2rem]" />
+      <div className="h-44 bg-gray-200 dark:bg-gray-800 rounded-[2rem]" />
+    </div>
+  );
+
+  return (
+    <div className="space-y-5">
+
+      {/* ── HEADER ROW ── */}
+      <div className="flex items-center justify-between">
+        <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest ml-1">Finance Overview · {activeSession}</h3>
+        <button
+          onClick={onRefresh} disabled={refreshing}
+          className="flex items-center gap-1.5 text-[10px] font-bold text-emerald-600 bg-emerald-50 dark:bg-emerald-900/20 px-3 py-1.5 rounded-full active:scale-95 transition-transform"
+        >
+          <RefreshCw size={11} className={refreshing ? 'animate-spin' : ''} />
+          {refreshing ? 'Refreshing…' : 'Refresh'}
+        </button>
+      </div>
+
+      {/* ── HERO: TODAY + DONUT side by side ── */}
+      <motion.div
+        initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}
+        className="bg-gradient-to-br from-emerald-600 to-teal-700 rounded-[2rem] p-5 text-white shadow-lg shadow-emerald-500/20 relative overflow-hidden"
+      >
+        <div className="absolute -right-10 -top-10 w-48 h-48 bg-white/10 rounded-full blur-3xl pointer-events-none" />
+        <div className="relative z-10 flex items-center justify-between gap-4">
+
+          {/* Left — today stats */}
+          <div className="flex-1 min-w-0">
+            <p className="text-[10px] font-bold uppercase tracking-widest text-emerald-100 mb-1">Today's Collection</p>
+            <h2 className="text-[2.6rem] font-black leading-none">₹{fmt(stats?.today_collection)}</h2>
+            <p className="text-emerald-100 text-xs mt-1 font-semibold">
+              {stats?.today_transactions || 0} txn · {stats?.today_students_paid || 0} students
+            </p>
+            <div className="mt-3">
+              <div className="flex justify-between text-[10px] font-bold text-emerald-100 mb-1">
+                <span>Session progress</span>
+                <span>{collectionPct.toFixed(0)}%</span>
+              </div>
+              <div className="w-full h-2 bg-white/20 rounded-full overflow-hidden">
+                <motion.div
+                  initial={{ width: 0 }} animate={{ width: `${collectionPct}%` }}
+                  transition={{ duration: 1.2, delay: 0.3, ease: 'easeOut' }}
+                  className="h-full bg-white rounded-full"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Right — CSS donut */}
+         <div className="shrink-0 flex flex-col items-center gap-2">
+         <div className="relative w-20 h-20">
+            <svg viewBox="0 0 36 36" className="w-20 h-20 -rotate-90">
+               {/* track */}
+               <circle cx="18" cy="18" r="14" fill="none" stroke="rgba(255,255,255,0.2)" strokeWidth="4" />
+               {/* filled arc */}
+               <circle
+               cx="18" cy="18" r="14" fill="none"
+               stroke="white" strokeWidth="4"
+               strokeDasharray={`${collectionPct * 0.879} 87.9`}
+               strokeLinecap="round"
+               />
+            </svg>
+            <div className="absolute inset-0 flex flex-col items-center justify-center">
+               <p className="text-base font-black text-white leading-none">{collectionPct.toFixed(0)}%</p>
+            </div>
+         </div>
+         <p className="text-[9px] font-bold text-emerald-100 text-center leading-tight">Fee<br/>Collected</p>
+         </div>
+
+        </div>
+      </motion.div>
+
+      {/* ── 3 KPI PILLS ── */}
+      <div className="grid grid-cols-3 gap-3">
+        {[
+          { label: 'Collected',   value: `₹${fmt(collected)}`,            color: 'text-emerald-600', bg: 'bg-emerald-50 dark:bg-emerald-900/20',  icon: IndianRupee },
+          { label: 'Outstanding', value: `₹${fmt(outstanding)}`,          color: 'text-rose-500',    bg: 'bg-rose-50 dark:bg-rose-900/20',         icon: AlertCircle },
+          { label: 'Defaulters',  value: stats?.defaulters || 0,          color: 'text-amber-600',   bg: 'bg-amber-50 dark:bg-amber-900/20',       icon: ShieldAlert },
+        ].map((s, i) => (
+          <motion.div key={s.label} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.07 }}>
+            <div className={`${s.bg} rounded-[1.5rem] p-3.5 flex flex-col gap-2`}>
+              <s.icon size={15} className={s.color} />
+              <p className={`text-lg font-black leading-none ${s.color}`}>{s.value}</p>
+              <p className="text-[9px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest leading-tight">{s.label}</p>
+            </div>
+          </motion.div>
+        ))}
+      </div>
+
+      {/* ── PENDING VERIFICATION ALERT (only if > 0) ── */}
+      {(stats?.pending_submissions || 0) > 0 && (
+        <Link href="/accountant/ledger">
+          <motion.div
+            initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.25 }}
+            className="flex items-center gap-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/40 rounded-[1.5rem] px-4 py-3.5"
+          >
+            <div className="w-9 h-9 rounded-xl bg-amber-500 flex items-center justify-center shrink-0">
+              <Clock size={17} className="text-white" />
+            </div>
+            <div className="flex-1">
+              <p className="text-sm font-black text-amber-800 dark:text-amber-300">
+                {stats.pending_submissions} submission{stats.pending_submissions !== 1 ? 's' : ''} pending verification
+              </p>
+              <p className="text-[10px] text-amber-600 dark:text-amber-400">Tap to review & approve</p>
+            </div>
+            <ChevronRight size={16} className="text-amber-400 shrink-0" />
+          </motion.div>
+        </Link>
+      )}
+
+      {/* ── COLLECTION BAR CHART ── */}
+      {chart?.length > 0 && (
+        <motion.div
+          initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}
+          className="bg-white dark:bg-[#151515] border border-gray-100 dark:border-gray-800 rounded-[2rem] p-5 shadow-sm"
+        >
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h3 className="font-black text-sm text-gray-900 dark:text-white">Monthly Collections</h3>
+              <p className="text-[10px] text-gray-400 mt-0.5">Last 12 months · {activeSession}</p>
+            </div>
+            <TrendingUp size={16} className="text-emerald-500" />
+          </div>
+          <ResponsiveContainer width="100%" height={180}>
+            <BarChart data={chart} margin={{ top: 4, right: 4, left: -28, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" strokeOpacity={0.4} vertical={false} />
+              <XAxis dataKey="label" tick={{ fontSize: 9, fill: '#9ca3af', fontWeight: 700 }} axisLine={false} tickLine={false} tickFormatter={(v) => v.slice(0, 3)} />
+              <YAxis tick={{ fontSize: 9, fill: '#9ca3af', fontWeight: 700 }} axisLine={false} tickLine={false} tickFormatter={(v) => v >= 1000 ? `${(v/1000).toFixed(0)}k` : v} />
+              <Tooltip content={<FinTooltip />} cursor={{ fill: 'rgba(16,185,129,0.06)', radius: 8 }} />
+              <Bar dataKey="amount" fill="#10b981" radius={[6, 6, 0, 0]} maxBarSize={28} />
+            </BarChart>
+          </ResponsiveContainer>
+        </motion.div>
+      )}
+
+      {/* ── CLASS-WISE BREAKDOWN ── */}
+      {classData?.length > 0 && (
+        <motion.div
+          initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.38 }}
+          className="bg-white dark:bg-[#151515] border border-gray-100 dark:border-gray-800 rounded-[2rem] p-5 shadow-sm"
+        >
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="font-black text-sm text-gray-900 dark:text-white">Class-wise Recovery</h3>
+            <Users size={15} className="text-blue-500" />
+          </div>
+          <div className="space-y-3">
+            {classData.map((cls, i) => {
+              const pct = cls.total_due > 0 ? Math.min(100, (cls.total_paid / cls.total_due) * 100) : 100;
+              const barColor = pct >= 80 ? 'bg-emerald-500' : pct >= 50 ? 'bg-amber-500' : 'bg-rose-500';
+              return (
+                <div key={i} className="flex items-center gap-3">
+                  <div className="w-16 shrink-0">
+                    <p className="text-[11px] font-black text-gray-800 dark:text-white truncate">{cls.class_name}</p>
+                    <p className="text-[9px] text-gray-400">{cls.student_count} students</p>
+                  </div>
+                  <div className="flex-1">
+                    <div className="w-full h-2 bg-gray-100 dark:bg-neutral-800 rounded-full overflow-hidden">
+                      <motion.div
+                        initial={{ width: 0 }} animate={{ width: `${pct}%` }}
+                        transition={{ duration: 0.9, delay: 0.4 + i * 0.04, ease: 'easeOut' }}
+                        className={`h-full rounded-full ${barColor}`}
+                      />
+                    </div>
+                  </div>
+                  <div className="w-10 shrink-0 text-right">
+                    <p className="text-[10px] font-black text-gray-700 dark:text-gray-300">{pct.toFixed(0)}%</p>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          {/* legend */}
+          <div className="flex items-center gap-4 mt-4 pt-3 border-t border-gray-100 dark:border-gray-800">
+            {[['bg-emerald-500','≥80%'],['bg-amber-500','50–79%'],['bg-rose-500','<50%']].map(([c,l]) => (
+              <div key={l} className="flex items-center gap-1.5">
+                <div className={`w-2 h-2 rounded-full ${c}`} />
+                <span className="text-[9px] font-bold text-gray-400">{l}</span>
+              </div>
+            ))}
+          </div>
+        </motion.div>
+      )}
+
+      {/* ── ALL ACTIONS — single list, no duplicates ── */}
+      <div>
+        <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest ml-1 mb-3">All Actions</h3>
+        <div className="bg-white dark:bg-[#151515] border border-gray-100 dark:border-gray-800 rounded-[2rem] overflow-hidden shadow-sm">
+          {[
+            { label: 'Collect Fee',          sub: 'Record cash / UPI payment',                           icon: CreditCard,      href: '/accountant/collect',           color: 'text-emerald-600', bg: 'bg-emerald-50 dark:bg-emerald-900/20' },
+            { label: 'Student Ledger',        sub: 'Search student · view dues',                          icon: BookOpen,        href: '/accountant/ledger',            color: 'text-blue-600',    bg: 'bg-blue-50 dark:bg-blue-900/20'       },
+            { label: 'Generate Invoices',     sub: 'Monthly fee invoices',                               icon: FileSpreadsheet, href: '/accountant/invoices/generate', color: 'text-purple-600',  bg: 'bg-purple-50 dark:bg-purple-900/20'   },
+            { label: 'Defaulters List',       sub: `${stats?.defaulters || 0} students with dues`,       icon: ShieldAlert,     href: '/accountant/defaulters',        color: 'text-rose-600',    bg: 'bg-rose-50 dark:bg-rose-900/20'       },
+            { label: 'Reports',               sub: 'Daily · monthly · session',                          icon: BarChart3,       href: '/accountant/reports',           color: 'text-amber-600',   bg: 'bg-amber-50 dark:bg-amber-900/20'     },
+            { label: 'Fee Matrix',            sub: 'Set class-wise fee amounts',                         icon: Settings,        href: '/accountant/fees/matrix',       color: 'text-teal-600',    bg: 'bg-teal-50 dark:bg-teal-900/20'       },
+            { label: 'Fee Heads',             sub: 'Tuition · belt · transport etc.',                    icon: FileText,        href: '/accountant/fees/heads',        color: 'text-indigo-600',  bg: 'bg-indigo-50 dark:bg-indigo-900/20'   },
+            { label: 'Expenses',              sub: 'Log school expenditure',                             icon: Wallet,          href: '/accountant/expenses',          color: 'text-pink-600',    bg: 'bg-pink-50 dark:bg-pink-900/20'       },
+          ].map((item, i, arr) => (
+            <Link key={item.label} href={item.href}
+              className={`flex items-center gap-4 px-5 py-3.5 active:bg-gray-50 dark:active:bg-neutral-800 transition-colors ${i !== arr.length - 1 ? 'border-b border-gray-100 dark:border-gray-800' : ''}`}
+            >
+              <div className={`w-9 h-9 rounded-2xl flex items-center justify-center shrink-0 ${item.bg} ${item.color}`}>
+                <item.icon size={16} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-black text-gray-900 dark:text-white">{item.label}</p>
+                <p className="text-[10px] text-gray-400 mt-0.5 truncate">{item.sub}</p>
+              </div>
+              <ChevronRight size={15} className="text-gray-300 dark:text-neutral-600 shrink-0" />
+            </Link>
+          ))}
+        </div>
+      </div>
+
+    </div>
+  );
 }
