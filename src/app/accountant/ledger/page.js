@@ -16,25 +16,16 @@ const getToken = () => {
 
 const safeFetchJson = async (url, options = {}) => {
   try {
-    const token = localStorage.getItem('token');
+    const token = getToken();
     const headers = {
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...(options.headers || {}),
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
     };
     const res = await fetch(url, { ...options, headers });
-    let text = await res.text();
-    try {
-      const firstBrace = text.indexOf('{');
-      const lastBrace = text.lastIndexOf('}');
-      if (firstBrace !== -1 && lastBrace !== -1) text = text.substring(firstBrace, lastBrace + 1);
-      return JSON.parse(text);
-    } catch (e) {
-      console.error("API returned non-JSON:", text);
-      return { success: false, message: 'Server error.' };
-    }
+    const text = await res.text();
+    return JSON.parse(text);
   } catch (err) {
-    console.error("Network Error:", err);
-    return { success: false, message: 'Network error.' };
+    return { success: false, message: 'Network/server error.' };
   }
 };
 
@@ -105,7 +96,7 @@ export default function LedgerPage() {
       localStorage.setItem('ledger_recent', JSON.stringify(updated));
       setRecent(updated);
     } catch { }
-    router.push(`/accountant/ledger/student/${student.id}`);
+    router.push(`/accountant/ledger/student?id=${student.id}`);
   };
 
   const clearSearch = () => { setQuery(''); setResults([]); setSearched(false); inputRef.current?.focus(); };

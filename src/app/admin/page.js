@@ -569,7 +569,7 @@ export default function AdminProfile() {
                                         <img src={`${process.env.NEXT_PUBLIC_IMAGE_BASE_URL}${a.profile_pic || 'GMPSimages/default-admin.jpg'}`} className="w-10 h-10 rounded-full object-cover bg-gray-100 border border-gray-100 dark:border-gray-700" loading="lazy" />
                                         <div>
                                             <h4 className="font-bold text-sm">{a.name}</h4>
-                                            <span className="text-[9px] bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded-md">{a.level == 1 ? 'Super Admin' : 'Admin'}</span>
+                                            <span className="text-[9px] bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded-md">{a.level == 1 ? 'Super Admin' : a.level == 3 ? 'Accountant' : 'Admin'}</span>
                                         </div>
                                         <button className="ml-auto text-xs bg-gray-100 dark:bg-gray-800 px-3 py-1.5 rounded-lg font-bold">Edit</button>
                                     </motion.div>
@@ -778,8 +778,9 @@ export default function AdminProfile() {
                                                 <div className="space-y-1">
                                                     <label className="text-[10px] font-bold text-gray-400 uppercase">Level</label>
                                                     <select name="level" className={dropdownStyle} defaultValue={detailModal.data.level}>
-                                                        <option value="1">Super Admin (Level 1)</option>
-                                                        <option value="2">Admin (Level 2)</option>
+                                                    <option value="1">Super Admin</option>
+                                                    <option value="2">Admin</option>
+                                                    <option value="3">Accountant</option>
                                                     </select>
                                                 </div>
                                                 <Input label="New Password" name="password" type="password" placeholder="Leave blank to keep" edit={true} />
@@ -876,10 +877,11 @@ export default function AdminProfile() {
 
                                 {addModalType === 'admin' && (
                                     <div className="space-y-1">
-                                        <label className="text-[10px] font-bold text-gray-400 uppercase">Level</label>
+                                        <label className="text-[10px] font-bold text-gray-400 uppercase">Admin Level</label>
                                         <select name="level" className={dropdownStyle}>
-                                            <option value="1">Super Admin</option>
-                                            <option value="2">Admin</option>
+                                        <option value="1">Super Admin</option>
+                                        <option value="2">Admin</option>
+                                        <option value="3">Accountant</option>
                                         </select>
                                     </div>
                                 )}

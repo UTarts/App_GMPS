@@ -51,19 +51,25 @@ export function AuthProvider({ children }) {
       const data = await res.json();
 
       if (data.status === 'success') {
-        const userData = { ...data.user, role };
-        
-        // Start a fresh family list
+        const userData = { ...data.user, role, token: data.token || data.user?.token || '' };
         const newFamily = [userData];
         setAccounts(newFamily);
         setUser(userData);
-        
         localStorage.setItem('gmps_family_accounts', JSON.stringify(newFamily));
         localStorage.setItem('gmps_active_index', '0');
-        localStorage.setItem('gmps_user', JSON.stringify(userData)); 
+        localStorage.setItem('gmps_user', JSON.stringify(userData));
+        if (data.user.token) {
+            localStorage.setItem('gmps_token', data.user.token);
+        } 
 
         const isTWA = window.location.search.includes('source=twa') || localStorage.getItem('view_mode') === 'twa';
-        router.push(isTWA ? '/?source=twa' : '/');
+        const suffix = isTWA ? '?source=twa' : '';
+        if (role === 'admin' && data.user.level === 3) {
+          router.push(`/accountant${suffix}`);
+        } else {
+          router.push(`/${suffix}`);
+        }
+
         
         return { success: true };
       } else {

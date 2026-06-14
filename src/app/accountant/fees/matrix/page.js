@@ -18,24 +18,15 @@ const getToken = () => {
 const safeFetchJson = async (url, options = {}) => {
   try {
     const token = getToken();
-    const isFormData = options.body instanceof FormData;
     const headers = {
-      'Authorization': `Bearer ${token}`,
-      ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
       ...(options.headers || {}),
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
     };
     const res = await fetch(url, { ...options, headers });
-    let text = await res.text();
-    try {
-      const f = text.indexOf('{'), l = text.lastIndexOf('}');
-      if (f !== -1 && l !== -1) text = text.substring(f, l + 1);
-      return JSON.parse(text);
-    } catch {
-      console.error("Non-JSON response:", text);
-      return { success: false, message: 'Server error.' };
-    }
+    const text = await res.text();
+    return JSON.parse(text);
   } catch (err) {
-    return { success: false, message: 'Network error.' };
+    return { success: false, message: 'Network/server error.' };
   }
 };
 
