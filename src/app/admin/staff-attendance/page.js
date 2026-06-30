@@ -1,19 +1,15 @@
 "use client";
-import { useEffect, useState } from 'react';
-import { ArrowLeft, Clock, CheckCircle, XCircle } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { ArrowLeft, CheckCircle, XCircle, ChevronLeft, ChevronRight, Save } from 'lucide-react';
 import Link from 'next/link';
 
 export default function AdminStaffTracker() {
   const [data, setData] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState('teacher');
+  const [selectedStaff, setSelectedStaff] = useState(null);
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
 
-  useEffect(() => {
-    fetchLiveTracker();
-    // Auto-refresh every 30 seconds for live monitoring
-    const interval = setInterval(fetchLiveTracker, 30000);
-    return () => clearInterval(interval);
-  }, [selectedDate]);
+  useEffect(() => { fetchLiveTracker(); }, [selectedDate]);
 
   const fetchLiveTracker = async () => {
     const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/staff_attendance.php`, {
@@ -21,57 +17,67 @@ export default function AdminStaffTracker() {
     });
     const json = await res.json();
     if(json.status === 'success') setData(json.data);
-    setLoading(false);
   };
 
-  const formatTime = (timeStr) => {
-      if (!timeStr) return '--:--';
-      const [h, m] = timeStr.split(':');
-      let hours = parseInt(h);
-      const ampm = hours >= 12 ? 'PM' : 'AM';
-      hours = hours % 12 || 12;
-      return `${hours}:${m} ${ampm}`;
+  const handleEdit = async (e) => {
+    e.preventDefault();
+    const formData = new FormData(e.target);
+    const body = { action: 'admin_edit_attendance', uid: `${selectedStaff.type}_${selectedStaff.id}`, ...Object.fromEntries(formData) };
+    await fetch(`${process.env.NEXT_PUBLIC_API_URL}/staff_attendance.php`, { method: 'POST', body: JSON.stringify(body) });
+    setSelectedStaff(null);
+    fetchLiveTracker();
   };
 
   return (
     <div className="min-h-screen bg-[#F2F6FA] dark:bg-[#0a0a0a] pb-24 text-gray-800 dark:text-white">
-      <div className="sticky top-0 z-40 bg-white/90 dark:bg-black/90 backdrop-blur-md border-b border-gray-200 dark:border-gray-800 px-4 py-4 flex items-center gap-4">
-        <Link href="/admin" className="p-2 -ml-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800"><ArrowLeft size={20} /></Link>
-        <div>
-            <h1 className="text-lg font-black tracking-tight leading-none">Live Monitor</h1>
-            <p className="text-[10px] text-gray-500 uppercase tracking-widest font-bold mt-1">Staff Biometric Feed</p>
-        </div>
+      <div className="sticky top-0 bg-white/90 p-4 border-b flex items-center gap-4">
+        <Link href="/admin"><ArrowLeft size={20} /></Link>
+        <h1 className="font-black">Live Monitor</h1>
       </div>
-      
-      <div className="p-4 mt-2 space-y-4">
-          <input 
-            type="date" 
-            value={selectedDate} 
-            onChange={e => setSelectedDate(e.target.value)} 
-            className="w-full bg-white dark:bg-[#151515] border border-gray-200 dark:border-gray-800 p-4 rounded-xl font-bold outline-none dark:text-white focus:border-blue-500"
-          />
 
-          {loading ? <p className="text-center py-10">Loading Monitor...</p> : (
-              data.map((staff) => (
-                  <div key={staff.id} className="bg-white dark:bg-[#151515] p-4 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm flex items-center gap-4">
-                      <img src={`${process.env.NEXT_PUBLIC_IMAGE_BASE_URL}${staff.profile_pic || 'GMPSimages/default_teacher.png'}`} className="w-12 h-12 rounded-full object-cover bg-gray-100" />
-                      <div className="flex-1">
-                          <h4 className="font-bold text-sm">{staff.name}</h4>
-                          <div className="flex items-center gap-1 mt-1">
-                              {staff.punch_in ? <CheckCircle size={12} className="text-green-500"/> : <XCircle size={12} className="text-red-500"/>}
-                              <span className={`text-[10px] font-bold uppercase tracking-widest ${staff.punch_in ? 'text-green-500' : 'text-red-500'}`}>
-                                  {staff.punch_in ? 'Present' : 'Absent'}
-                              </span>
-                          </div>
-                      </div>
-                      <div className="text-right">
-                          <p className="text-[10px] text-gray-400 uppercase tracking-widest mb-0.5"><span className="text-green-500">IN:</span> {formatTime(staff.punch_in)}</p>
-                          <p className="text-[10px] text-gray-400 uppercase tracking-widest"><span className="text-orange-500">OUT:</span> {formatTime(staff.punch_out)}</p>
-                      </div>
-                  </div>
-              ))
-          )}
+      {/* TABS */}
+      <div className="flex gap-2 p-4">
+        <button onClick={() => setActiveTab('teacher')} className={`flex-1 py-2 rounded-xl text-[10px] font-black ${activeTab === 'teacher' ? 'bg-blue-600 text-white' : 'bg-white'}`}>TEACHERS</button>
+        <button onClick={() => setActiveTab('staff')} className={`flex-1 py-2 rounded-xl text-[10px] font-black ${activeTab === 'staff' ? 'bg-blue-600 text-white' : 'bg-white'}`}>OTHER STAFF</button>
       </div>
+
+      <div className="px-4 space-y-3">
+        {data.filter(s => s.type === activeTab).map((s) => (
+          <div key={`${s.type}_${s.id}`} onClick={() => setSelectedStaff(s)} className="bg-white p-4 rounded-2xl flex items-center gap-4 cursor-pointer hover:shadow-md">
+            <img src={`${process.env.NEXT_PUBLIC_IMAGE_BASE_URL}${s.profile_pic}`} className="w-12 h-12 rounded-full object-cover" />
+            <div className="flex-1">
+              <p className="font-bold text-sm">{s.name}</p>
+              <p className="text-[10px] font-black uppercase text-gray-400">{s.status || 'Not Punched'}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* MASTER ATTENDANCE MODAL */}
+      {selectedStaff && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <form onSubmit={handleEdit} className="bg-white w-full max-w-sm rounded-3xl p-6 shadow-2xl">
+            <h2 className="font-black mb-4">Edit {selectedStaff.name}</h2>
+            <input type="hidden" name="date" value={selectedDate} />
+            <label className="text-[10px] font-bold uppercase">Punch IN</label>
+            <input name="punch_in" type="time" defaultValue={selectedStaff.punch_in} className="w-full p-3 bg-gray-100 rounded-xl mb-3" />
+            <label className="text-[10px] font-bold uppercase">Punch OUT</label>
+            <input name="punch_out" type="time" defaultValue={selectedStaff.punch_out} className="w-full p-3 bg-gray-100 rounded-xl mb-3" />
+            <select name="status" defaultValue={selectedStaff.status} className="w-full p-3 bg-gray-100 rounded-xl mb-6 font-bold">
+              <option value="present">Present</option>
+              <option value="absent">Absent</option>
+              <option value="halfday">Half Day</option>
+              <option value="leave">On Leave</option>
+            </select>
+            <div className="flex gap-3">
+              <button type="button" onClick={() => setSelectedStaff(null)} className="flex-1 py-3 font-bold">Cancel</button>
+              <button className="flex-1 bg-blue-600 text-white py-3 rounded-xl font-black flex items-center justify-center gap-2">
+                <Save size={16}/> Save
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
     </div>
   );
 }

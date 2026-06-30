@@ -16,7 +16,7 @@ import {
   Gift, Book, Download, GraduationCap, Megaphone, HelpCircle, 
   Trophy, PhoneCall, NotebookPen, FileSpreadsheet, Activity, Wallet, ExternalLink, 
   MessageSquare, Film, Lock, UploadCloud, LibraryBig, BookMarked, IndianRupee, AlertCircle, TrendingUp,
-   ShieldAlert, ChevronRight, RefreshCw, PieChart, Pie, Cell
+  ShieldAlert, ChevronRight, RefreshCw, PieChart, Pie, Cell, Link as LinkIcon, Tag
 } from 'lucide-react';
 import Link from 'next/link';
 import {
@@ -299,9 +299,9 @@ const getBadgeText = () => {
               </div>
 
               <div className="relative z-20 -mr-3 flex-shrink-0"> 
-                  <div className="w-28 h-28 rounded-full shadow-none bg-gray-200 overflow-hidden">
+                  <div className="w-28 h-28 rounded-full shadow-none bg-gray-200 overflow-hidden border-4 border-white/20">
                       <img 
-                          src={user?.pic ? `${process.env.NEXT_PUBLIC_IMAGE_BASE_URL}${user.pic}` : `${process.env.NEXT_PUBLIC_IMAGE_BASE_URL}GMPSimages/default_user.png`}
+                          src={(user?.pic || user?.profile_pic) ? `${process.env.NEXT_PUBLIC_IMAGE_BASE_URL}${user.pic || user.profile_pic}` : `${process.env.NEXT_PUBLIC_IMAGE_BASE_URL}GMPSimages/default_user.png`}
                           alt="Profile"
                           loading="lazy"
                           className="w-full h-full object-cover"
@@ -966,29 +966,28 @@ function FinTooltip({ active, payload, label }) {
   );
 }
 
-function AccountantFinanceDashboard({ stats, chart, classData, loading, refreshing, onRefresh, activeSession }) {
+export function AccountantFinanceDashboard({ stats, chart, classData, loading, refreshing, onRefresh, activeSession }) {
   const collected   = stats?.total_collected    || 0;
   const outstanding = stats?.total_outstanding  || 0;
+  const discounts   = stats?.total_discount     || 0;
   const total       = collected + outstanding   || 1;
   const collectionPct = Math.min(100, (collected / total) * 100);
-
 
   if (loading) return (
     <div className="space-y-4 animate-pulse">
       <div className="h-40 bg-gray-200 dark:bg-gray-800 rounded-[2rem]" />
-      <div className="grid grid-cols-3 gap-3">
-        {[...Array(3)].map((_, i) => <div key={i} className="h-24 bg-gray-200 dark:bg-gray-800 rounded-[1.5rem]" />)}
+      <div className="grid grid-cols-2 gap-3">
+        {[...Array(4)].map((_, i) => <div key={i} className="h-24 bg-gray-200 dark:bg-gray-800 rounded-[1.5rem]" />)}
       </div>
       <div className="h-56 bg-gray-200 dark:bg-gray-800 rounded-[2rem]" />
-      <div className="h-44 bg-gray-200 dark:bg-gray-800 rounded-[2rem]" />
     </div>
   );
 
   return (
-    <div className="space-y-5">
-
+    <div className="space-y-6">
+      
       {/* ── HEADER ROW ── */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between mt-2">
         <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest ml-1">Finance Overview · {activeSession}</h3>
         <button
           onClick={onRefresh} disabled={refreshing}
@@ -999,20 +998,39 @@ function AccountantFinanceDashboard({ stats, chart, classData, loading, refreshi
         </button>
       </div>
 
-      {/* ── HERO: TODAY + DONUT side by side ── */}
+      {/* ── FINANCE TOOLS (BENTO GRID) ── */}
+      {/* ── ACCOUNTANT TOOLS ── */}
+      <div>
+         <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3 ml-1">Accountant Tools</h3>
+         <div className="bg-white dark:bg-[#151515] border border-gray-100 dark:border-gray-800 rounded-[2rem] p-5 shadow-sm">
+            <div className="grid grid-cols-4 gap-y-6 gap-x-2">
+               <ToolAppIcon title="Ledger" icon={BookOpen} link="/accountant/ledger" iconColor="text-blue-600" />
+               <ToolAppIcon title="Fee Map" icon={GraduationCap} link="/accountant/mapping" iconColor="text-purple-600" />
+               <ToolAppIcon title="Siblings" icon={LinkIcon} link="/accountant/siblings" iconColor="text-cyan-600" />
+               <ToolAppIcon title="Fee Matrix" icon={Settings} link="/accountant/fees/matrix" iconColor="text-teal-600" />
+               <ToolAppIcon title="Fee Heads" icon={FileText} link="/accountant/fees/heads" iconColor="text-indigo-600" />
+               <ToolAppIcon title="Defaulters" icon={ShieldAlert} link="/accountant/defaulters" iconColor="text-rose-600" />
+               <ToolAppIcon title="Discounts" icon={Tag} link="/accountant/discounts" iconColor="text-purple-500" />
+               <ToolAppIcon title="Invoices" icon={FileSpreadsheet} link="/accountant/invoices/generate" iconColor="text-gray-600" />
+               <ToolAppIcon title="Reports" icon={BarChart3} link="/accountant/reports" iconColor="text-amber-600" />
+               <ToolAppIcon title="Expenses" icon={Wallet} link="/accountant/expenses" iconColor="text-pink-600" />
+               <ToolAppIcon title="Pending" icon={Clock} link="/accountant/submissions" iconColor="text-orange-500" />
+            </div>
+         </div>
+      </div>
+
+      {/* ── HERO: TODAY + DONUT ── */}
       <motion.div
         initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}
         className="bg-gradient-to-br from-emerald-600 to-teal-700 rounded-[2rem] p-5 text-white shadow-lg shadow-emerald-500/20 relative overflow-hidden"
       >
         <div className="absolute -right-10 -top-10 w-48 h-48 bg-white/10 rounded-full blur-3xl pointer-events-none" />
         <div className="relative z-10 flex items-center justify-between gap-4">
-
-          {/* Left — today stats */}
           <div className="flex-1 min-w-0">
             <p className="text-[10px] font-bold uppercase tracking-widest text-emerald-100 mb-1">Today's Collection</p>
             <h2 className="text-[2.6rem] font-black leading-none">₹{fmt(stats?.today_collection)}</h2>
             <p className="text-emerald-100 text-xs mt-1 font-semibold">
-              {stats?.today_transactions || 0} txn · {stats?.today_students_paid || 0} students
+              {stats?.today_transactions || 0} txn completed
             </p>
             <div className="mt-3">
               <div className="flex justify-between text-[10px] font-bold text-emerald-100 mb-1">
@@ -1020,70 +1038,52 @@ function AccountantFinanceDashboard({ stats, chart, classData, loading, refreshi
                 <span>{collectionPct.toFixed(0)}%</span>
               </div>
               <div className="w-full h-2 bg-white/20 rounded-full overflow-hidden">
-                <motion.div
-                  initial={{ width: 0 }} animate={{ width: `${collectionPct}%` }}
-                  transition={{ duration: 1.2, delay: 0.3, ease: 'easeOut' }}
-                  className="h-full bg-white rounded-full"
-                />
+                <motion.div initial={{ width: 0 }} animate={{ width: `${collectionPct}%` }} transition={{ duration: 1.2, delay: 0.3, ease: 'easeOut' }} className="h-full bg-white rounded-full" />
               </div>
             </div>
           </div>
-
-          {/* Right — CSS donut */}
-         <div className="shrink-0 flex flex-col items-center gap-2">
-         <div className="relative w-20 h-20">
-            <svg viewBox="0 0 36 36" className="w-20 h-20 -rotate-90">
-               {/* track */}
-               <circle cx="18" cy="18" r="14" fill="none" stroke="rgba(255,255,255,0.2)" strokeWidth="4" />
-               {/* filled arc */}
-               <circle
-               cx="18" cy="18" r="14" fill="none"
-               stroke="white" strokeWidth="4"
-               strokeDasharray={`${collectionPct * 0.879} 87.9`}
-               strokeLinecap="round"
-               />
-            </svg>
-            <div className="absolute inset-0 flex flex-col items-center justify-center">
-               <p className="text-base font-black text-white leading-none">{collectionPct.toFixed(0)}%</p>
+          <div className="shrink-0 flex flex-col items-center gap-2">
+            <div className="relative w-20 h-20">
+                <svg viewBox="0 0 36 36" className="w-20 h-20 -rotate-90">
+                  <circle cx="18" cy="18" r="14" fill="none" stroke="rgba(255,255,255,0.2)" strokeWidth="4" />
+                  <circle cx="18" cy="18" r="14" fill="none" stroke="white" strokeWidth="4" strokeDasharray={`${collectionPct * 0.879} 87.9`} strokeLinecap="round" />
+                </svg>
+                <div className="absolute inset-0 flex flex-col items-center justify-center">
+                  <p className="text-base font-black text-white leading-none">{collectionPct.toFixed(0)}%</p>
+                </div>
             </div>
-         </div>
-         <p className="text-[9px] font-bold text-emerald-100 text-center leading-tight">Fee<br/>Collected</p>
-         </div>
-
+            <p className="text-[9px] font-bold text-emerald-100 text-center leading-tight">Fee<br/>Collected</p>
+          </div>
         </div>
       </motion.div>
 
-      {/* ── 3 KPI PILLS ── */}
-      <div className="grid grid-cols-3 gap-3">
+      {/* ── 4 KPI PILLS (Now includes Discounts) ── */}
+      <div className="grid grid-cols-2 gap-3">
         {[
           { label: 'Collected',   value: `₹${fmt(collected)}`,            color: 'text-emerald-600', bg: 'bg-emerald-50 dark:bg-emerald-900/20',  icon: IndianRupee },
-          { label: 'Outstanding', value: `₹${fmt(outstanding)}`,          color: 'text-rose-500',    bg: 'bg-rose-50 dark:bg-rose-900/20',         icon: AlertCircle },
-          { label: 'Defaulters',  value: stats?.defaulters || 0,          color: 'text-amber-600',   bg: 'bg-amber-50 dark:bg-amber-900/20',       icon: ShieldAlert },
+          { label: 'Outstanding', value: `₹${fmt(outstanding)}`,          color: 'text-rose-500',    bg: 'bg-rose-50 dark:bg-rose-900/20',        icon: AlertCircle },
+          { label: 'Discounts',   value: `₹${fmt(discounts)}`,            color: 'text-purple-600',  bg: 'bg-purple-50 dark:bg-purple-900/20',    icon: ShieldAlert },
+          { label: 'Defaulters',  value: stats?.defaulters || 0,          color: 'text-amber-600',   bg: 'bg-amber-50 dark:bg-amber-900/20',      icon: Users },
         ].map((s, i) => (
           <motion.div key={s.label} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.07 }}>
-            <div className={`${s.bg} rounded-[1.5rem] p-3.5 flex flex-col gap-2`}>
-              <s.icon size={15} className={s.color} />
-              <p className={`text-lg font-black leading-none ${s.color}`}>{s.value}</p>
-              <p className="text-[9px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest leading-tight">{s.label}</p>
+            <div className={`${s.bg} rounded-[1.5rem] p-4 flex flex-col gap-2`}>
+              <s.icon size={16} className={s.color} />
+              <p className={`text-xl font-black leading-none ${s.color}`}>{s.value}</p>
+              <p className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest leading-tight">{s.label}</p>
             </div>
           </motion.div>
         ))}
       </div>
 
-      {/* ── PENDING VERIFICATION ALERT (only if > 0) ── */}
+      {/* ── PENDING VERIFICATION ALERT ── */}
       {(stats?.pending_submissions || 0) > 0 && (
-        <Link href="/accountant/ledger">
-          <motion.div
-            initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.25 }}
-            className="flex items-center gap-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/40 rounded-[1.5rem] px-4 py-3.5"
-          >
+        <Link href="/accountant/submissions">
+          <motion.div initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.25 }} className="flex items-center gap-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/40 rounded-[1.5rem] px-4 py-3.5">
             <div className="w-9 h-9 rounded-xl bg-amber-500 flex items-center justify-center shrink-0">
               <Clock size={17} className="text-white" />
             </div>
             <div className="flex-1">
-              <p className="text-sm font-black text-amber-800 dark:text-amber-300">
-                {stats.pending_submissions} submission{stats.pending_submissions !== 1 ? 's' : ''} pending verification
-              </p>
+              <p className="text-sm font-black text-amber-800 dark:text-amber-300">{stats.pending_submissions} submission{stats.pending_submissions !== 1 ? 's' : ''} pending verification</p>
               <p className="text-[10px] text-amber-600 dark:text-amber-400">Tap to review & approve</p>
             </div>
             <ChevronRight size={16} className="text-amber-400 shrink-0" />
@@ -1093,14 +1093,11 @@ function AccountantFinanceDashboard({ stats, chart, classData, loading, refreshi
 
       {/* ── COLLECTION BAR CHART ── */}
       {chart?.length > 0 && (
-        <motion.div
-          initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}
-          className="bg-white dark:bg-[#151515] border border-gray-100 dark:border-gray-800 rounded-[2rem] p-5 shadow-sm"
-        >
+        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }} className="bg-white dark:bg-[#151515] border border-gray-100 dark:border-gray-800 rounded-[2rem] p-5 shadow-sm">
           <div className="flex items-center justify-between mb-4">
             <div>
               <h3 className="font-black text-sm text-gray-900 dark:text-white">Monthly Collections</h3>
-              <p className="text-[10px] text-gray-400 mt-0.5">Last 12 months · {activeSession}</p>
+              <p className="text-[10px] text-gray-400 mt-0.5">Last 12 months · Actual Money Collected</p>
             </div>
             <TrendingUp size={16} className="text-emerald-500" />
           </div>
@@ -1116,43 +1113,41 @@ function AccountantFinanceDashboard({ stats, chart, classData, loading, refreshi
         </motion.div>
       )}
 
-      {/* ── CLASS-WISE BREAKDOWN ── */}
+      {/* ── CLASS-WISE RECOVERY ── */}
       {classData?.length > 0 && (
-        <motion.div
-          initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.38 }}
-          className="bg-white dark:bg-[#151515] border border-gray-100 dark:border-gray-800 rounded-[2rem] p-5 shadow-sm"
-        >
-          <div className="flex items-center justify-between mb-4">
+        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.38 }} className="bg-white dark:bg-[#151515] border border-gray-100 dark:border-gray-800 rounded-[2rem] p-5 shadow-sm">
+          <div className="flex items-center justify-between mb-6">
             <h3 className="font-black text-sm text-gray-900 dark:text-white">Class-wise Recovery</h3>
             <Users size={15} className="text-blue-500" />
           </div>
-          <div className="space-y-3">
+          <div className="space-y-4">
             {classData.map((cls, i) => {
-              const pct = cls.total_due > 0 ? Math.min(100, (cls.total_paid / cls.total_due) * 100) : 100;
+              // Smart percentage calculation: If paid > 0 and due is 0, show 100% instead of 0%
+              const pct = cls.total_due > 0 
+                ? Math.min(100, (cls.total_paid / cls.total_due) * 100) 
+                : (cls.total_paid > 0 ? 100 : 0);
+                
               const barColor = pct >= 80 ? 'bg-emerald-500' : pct >= 50 ? 'bg-amber-500' : 'bg-rose-500';
               return (
-                <div key={i} className="flex items-center gap-3">
-                  <div className="w-16 shrink-0">
-                    <p className="text-[11px] font-black text-gray-800 dark:text-white truncate">{cls.class_name}</p>
-                    <p className="text-[9px] text-gray-400">{cls.student_count} students</p>
+                <div key={i}>
+                  <div className="flex justify-between text-[11px] mb-1.5">
+                    <span className="font-black text-gray-800 dark:text-white">{cls.class_name} <span className="text-[9px] text-gray-400 font-normal">({cls.student_count} Students)</span></span>
+                    <span className="font-bold text-gray-600 dark:text-gray-300 tracking-tight text-[10px]">Collected: <span className="text-emerald-600 dark:text-emerald-400 font-black">₹{fmt(cls.total_paid)}</span></span>
                   </div>
-                  <div className="flex-1">
-                    <div className="w-full h-2 bg-gray-100 dark:bg-neutral-800 rounded-full overflow-hidden">
-                      <motion.div
-                        initial={{ width: 0 }} animate={{ width: `${pct}%` }}
-                        transition={{ duration: 0.9, delay: 0.4 + i * 0.04, ease: 'easeOut' }}
-                        className={`h-full rounded-full ${barColor}`}
-                      />
+                  <div className="flex items-center gap-3">
+                    <div className="flex-1">
+                      <div className="w-full h-2 bg-gray-100 dark:bg-neutral-800 rounded-full overflow-hidden">
+                        <motion.div initial={{ width: 0 }} animate={{ width: `${pct}%` }} transition={{ duration: 0.9, delay: 0.4 + i * 0.04, ease: 'easeOut' }} className={`h-full rounded-full ${barColor}`} />
+                      </div>
                     </div>
-                  </div>
-                  <div className="w-10 shrink-0 text-right">
-                    <p className="text-[10px] font-black text-gray-700 dark:text-gray-300">{pct.toFixed(0)}%</p>
+                    <div className="w-8 shrink-0 text-right">
+                      <p className="text-[10px] font-black text-gray-700 dark:text-gray-300">{pct.toFixed(0)}%</p>
+                    </div>
                   </div>
                 </div>
               );
             })}
           </div>
-          {/* legend */}
           <div className="flex items-center gap-4 mt-4 pt-3 border-t border-gray-100 dark:border-gray-800">
             {[['bg-emerald-500','≥80%'],['bg-amber-500','50–79%'],['bg-rose-500','<50%']].map(([c,l]) => (
               <div key={l} className="flex items-center gap-1.5">
@@ -1163,36 +1158,6 @@ function AccountantFinanceDashboard({ stats, chart, classData, loading, refreshi
           </div>
         </motion.div>
       )}
-
-      {/* ── ALL ACTIONS — single list, no duplicates ── */}
-      <div>
-        <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest ml-1 mb-3">All Actions</h3>
-        <div className="bg-white dark:bg-[#151515] border border-gray-100 dark:border-gray-800 rounded-[2rem] overflow-hidden shadow-sm">
-          {[
-            { label: 'Collect Fee',          sub: 'Record cash / UPI payment',                           icon: CreditCard,      href: '/accountant/collect',           color: 'text-emerald-600', bg: 'bg-emerald-50 dark:bg-emerald-900/20' },
-            { label: 'Student Ledger',        sub: 'Search student · view dues',                          icon: BookOpen,        href: '/accountant/ledger',            color: 'text-blue-600',    bg: 'bg-blue-50 dark:bg-blue-900/20'       },
-            { label: 'Generate Invoices',     sub: 'Monthly fee invoices',                               icon: FileSpreadsheet, href: '/accountant/invoices/generate', color: 'text-purple-600',  bg: 'bg-purple-50 dark:bg-purple-900/20'   },
-            { label: 'Defaulters List',       sub: `${stats?.defaulters || 0} students with dues`,       icon: ShieldAlert,     href: '/accountant/defaulters',        color: 'text-rose-600',    bg: 'bg-rose-50 dark:bg-rose-900/20'       },
-            { label: 'Reports',               sub: 'Daily · monthly · session',                          icon: BarChart3,       href: '/accountant/reports',           color: 'text-amber-600',   bg: 'bg-amber-50 dark:bg-amber-900/20'     },
-            { label: 'Fee Matrix',            sub: 'Set class-wise fee amounts',                         icon: Settings,        href: '/accountant/fees/matrix',       color: 'text-teal-600',    bg: 'bg-teal-50 dark:bg-teal-900/20'       },
-            { label: 'Fee Heads',             sub: 'Tuition · belt · transport etc.',                    icon: FileText,        href: '/accountant/fees/heads',        color: 'text-indigo-600',  bg: 'bg-indigo-50 dark:bg-indigo-900/20'   },
-            { label: 'Expenses',              sub: 'Log school expenditure',                             icon: Wallet,          href: '/accountant/expenses',          color: 'text-pink-600',    bg: 'bg-pink-50 dark:bg-pink-900/20'       },
-          ].map((item, i, arr) => (
-            <Link key={item.label} href={item.href}
-              className={`flex items-center gap-4 px-5 py-3.5 active:bg-gray-50 dark:active:bg-neutral-800 transition-colors ${i !== arr.length - 1 ? 'border-b border-gray-100 dark:border-gray-800' : ''}`}
-            >
-              <div className={`w-9 h-9 rounded-2xl flex items-center justify-center shrink-0 ${item.bg} ${item.color}`}>
-                <item.icon size={16} />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-black text-gray-900 dark:text-white">{item.label}</p>
-                <p className="text-[10px] text-gray-400 mt-0.5 truncate">{item.sub}</p>
-              </div>
-              <ChevronRight size={15} className="text-gray-300 dark:text-neutral-600 shrink-0" />
-            </Link>
-          ))}
-        </div>
-      </div>
 
     </div>
   );

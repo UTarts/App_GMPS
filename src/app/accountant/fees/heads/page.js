@@ -37,7 +37,7 @@ const TYPE_META = {
   one_time: { label: 'One-time', icon: Zap,          color: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400', dot: 'bg-amber-500' },
 };
 
-const EMPTY_FORM = { id: null, name: '', type: 'monthly' };
+const EMPTY_FORM = { id: null, name: '', type: 'monthly', is_extra: 0, preset_amount: '' };
 
 export default function FeeHeadsPage() {
   const { user } = useAuth();
@@ -49,7 +49,7 @@ export default function FeeHeadsPage() {
   const [saving, setSaving] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState(EMPTY_FORM);
-  const [filter, setFilter] = useState('all'); // all | monthly | yearly | one_time | inactive
+  const [filter, setFilter] = useState('all'); 
 
   useEffect(() => {
     if (!user) return;
@@ -58,7 +58,6 @@ export default function FeeHeadsPage() {
       return;
     }
     loadHeads();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
   const loadHeads = async () => {
@@ -75,7 +74,18 @@ export default function FeeHeadsPage() {
   };
 
   const openAdd = () => { setForm(EMPTY_FORM); setShowForm(true); };
-  const openEdit = (h) => { setForm({ id: h.id, name: h.name, type: h.type }); setShowForm(true); };
+  
+  const openEdit = (h) => { 
+    setForm({ 
+      id: h.id, 
+      name: h.name, 
+      type: h.type, 
+      is_extra: Number(h.is_extra) || 0, 
+      preset_amount: h.preset_amount || '' 
+    }); 
+    setShowForm(true); 
+  };
+  
   const closeForm = () => { setShowForm(false); setForm(EMPTY_FORM); };
 
   const saveHead = async () => {
@@ -87,7 +97,10 @@ export default function FeeHeadsPage() {
     const fd = new FormData();
     fd.append('action', form.id ? 'update_fee_head' : 'add_fee_head');
     fd.append('name', form.name.trim());
-    fd.append('type', form.type);
+    fd.append('type', form.is_extra ? 'one_time' : form.type); // Enforce one_time for extras
+    fd.append('is_extra', form.is_extra ? 1 : 0);
+    fd.append('preset_amount', form.preset_amount || 0);
+
     if (form.id) fd.append('id', form.id);
     const json = await safeFetchJson(`${process.env.NEXT_PUBLIC_API_URL}/fin_api.php`, {
       method: 'POST', body: fd,
@@ -144,11 +157,15 @@ export default function FeeHeadsPage() {
   const filtered = heads.filter(h => {
     if (filter === 'inactive') return !h.is_active;
     if (filter === 'all') return true;
-    return h.type === filter;
+    if (filter === 'main') return h.is_active && Number(h.is_extra) === 0;
+    if (filter === 'extra') return h.is_active && Number(h.is_extra) === 1;
+    return h.type === filter && h.is_active;
   });
 
   const counts = {
     all: heads.length,
+    main: heads.filter(h => h.is_active && Number(h.is_extra) === 0).length,
+    extra: heads.filter(h => h.is_active && Number(h.is_extra) === 1).length,
     monthly: heads.filter(h => h.type === 'monthly' && h.is_active).length,
     yearly: heads.filter(h => h.type === 'yearly' && h.is_active).length,
     one_time: heads.filter(h => h.type === 'one_time' && h.is_active).length,
@@ -182,6 +199,8 @@ export default function FeeHeadsPage() {
         <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
           {[
             { key: 'all', label: `All (${counts.all})` },
+            { key: 'main', label: `Main (${counts.main})` },
+            { key: 'extra', label: `Extras (${counts.extra})` },
             { key: 'monthly', label: `Monthly (${counts.monthly})` },
             { key: 'yearly', label: `Yearly (${counts.yearly})` },
             { key: 'one_time', label: `One-time (${counts.one_time})` },
@@ -284,6 +303,19 @@ export default function FeeHeadsPage() {
                         <span className={`text-xs px-2 py-0.5 rounded-full font-medium flex-shrink-0 ${meta.color}`}>
                           {meta.label}
                         </span>
+
+                        {/* Extra & Preset Badges */}
+                        {Number(head.is_extra) === 1 && (
+                          <span className="text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 font-medium">
+                            Extra Item
+                          </span>
+                        )}
+                        {Number(head.preset_amount) > 0 && (
+                          <span className="text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 font-medium">
+                            Preset: ₹{head.preset_amount}
+                          </span>
+                        )}
+
                         {!head.is_active && (
                           <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-500">
                             Inactive
@@ -297,7 +329,6 @@ export default function FeeHeadsPage() {
 
                     {/* Actions */}
                     <div className="flex items-center gap-1 flex-shrink-0">
-                      {/* Toggle active */}
                       <button
                         onClick={() => toggleActive(head)}
                         title={head.is_active ? 'Disable this fee head' : 'Enable this fee head'}
@@ -308,7 +339,6 @@ export default function FeeHeadsPage() {
                           : <ToggleLeft size={20} className="text-gray-400" />
                         }
                       </button>
-                      {/* Edit */}
                       <button
                         onClick={() => openEdit(head)}
                         title="Edit"
@@ -316,7 +346,6 @@ export default function FeeHeadsPage() {
                       >
                         <Edit3 size={16} className="text-gray-500 dark:text-gray-400" />
                       </button>
-                      {/* Delete */}
                       <button
                         onClick={() => confirmDelete(head)}
                         title="Delete"
@@ -336,10 +365,10 @@ export default function FeeHeadsPage() {
         {!loading && heads.length > 0 && (
           <div className="rounded-2xl bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-800 p-4 text-xs text-amber-700 dark:text-amber-400 space-y-1">
             <p className="font-semibold flex items-center gap-1.5"><Tag size={13} /> How fee heads work</p>
-            <p>• <strong>Monthly</strong> heads appear in every monthly invoice (e.g. Tuition Fee, Transport Fee).</p>
-            <p>• <strong>Yearly</strong> heads appear once per session (e.g. Exam Fee, Session Fee).</p>
-            <p>• <strong>One-time</strong> heads are charged once per student (e.g. Admission Fee, Student Kit).</p>
-            <p>• Disabling a head hides it from future invoices without deleting historical data.</p>
+            <p>• <strong>Monthly</strong> heads appear in every monthly invoice (e.g. Tuition Fee).</p>
+            <p>• <strong>Yearly</strong> heads appear once per session (e.g. Exam Fee).</p>
+            <p>• <strong>One-time</strong> heads are charged once per student (e.g. Admission Fee).</p>
+            <p>• <strong>Extras</strong> (like Tie, Belt) do not auto-calculate into the matrix.</p>
           </div>
         )}
       </div>
@@ -361,7 +390,6 @@ export default function FeeHeadsPage() {
               transition={{ type: 'spring', damping: 25, stiffness: 300 }}
               className="w-full max-w-md bg-white dark:bg-gray-900 rounded-3xl shadow-2xl overflow-hidden"
             >
-              {/* Modal header */}
               <div className="flex items-center gap-3 px-5 pt-5 pb-4 border-b border-gray-100 dark:border-gray-800">
                 <div className="w-9 h-9 rounded-xl bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center">
                   <Tag size={16} className="text-emerald-600 dark:text-emerald-400" />
@@ -379,9 +407,31 @@ export default function FeeHeadsPage() {
                 </button>
               </div>
 
-              {/* Modal body */}
               <div className="px-5 py-4 space-y-4">
-                {/* Name */}
+                {/* Extra Item Toggle - Moved to top for better flow */}
+                <div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const isExtra = form.is_extra ? 0 : 1;
+                      setForm(p => ({ ...p, is_extra: isExtra, type: isExtra ? 'one_time' : p.type }));
+                    }}
+                    className={`w-full p-4 rounded-xl border flex items-center justify-between transition-all ${
+                      form.is_extra 
+                        ? 'bg-amber-50 border-amber-300 text-amber-800 dark:bg-amber-900/20 dark:border-amber-700 dark:text-amber-400' 
+                        : 'bg-gray-50 border-gray-200 text-gray-700 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-300'
+                    }`}
+                  >
+                    <div className="text-left">
+                      <span className="text-sm font-semibold">This is an "Extra" item</span>
+                      <p className="text-xs opacity-80 mt-0.5">e.g., Tie, Belt (Manual, no billing cycle)</p>
+                    </div>
+                    <div className={`w-10 h-5 rounded-full relative transition-all ${form.is_extra ? 'bg-amber-500' : 'bg-gray-300 dark:bg-gray-600'}`}>
+                      <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-all ${form.is_extra ? 'left-5' : 'left-0.5'}`}></div>
+                    </div>
+                  </button>
+                </div>
+
                 <div className="space-y-1.5">
                   <label className="text-xs font-medium text-gray-700 dark:text-gray-300">Fee Head Name *</label>
                   <input
@@ -389,43 +439,52 @@ export default function FeeHeadsPage() {
                     value={form.name}
                     onChange={e => setForm(p => ({ ...p, name: e.target.value }))}
                     onKeyDown={e => e.key === 'Enter' && saveHead()}
-                    placeholder="e.g. Tuition Fee, Transport Fee, Exam Fee…"
+                    placeholder="e.g. Tuition Fee, Transport Fee, Tie…"
                     className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-sm text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
                   />
                 </div>
 
-                {/* Type selector */}
+                {/* SMART UX: Completely hide Billing Type if it is an Extra */}
+                {!form.is_extra && (
+                  <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="space-y-1.5">
+                    <label className="text-xs font-medium text-gray-700 dark:text-gray-300">Billing Type *</label>
+                    <div className="grid grid-cols-3 gap-2">
+                      {Object.entries(TYPE_META).map(([key, meta]) => {
+                        const Icon = meta.icon;
+                        return (
+                          <button
+                            key={key}
+                            type="button"
+                            onClick={() => setForm(p => ({ ...p, type: key }))}
+                            className={`flex flex-col items-center gap-1.5 p-3 rounded-xl border text-center transition-all ${
+                              form.type === key
+                                ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400'
+                                : 'border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:border-emerald-300'
+                            }`}
+                          >
+                            <Icon size={18} />
+                            <span className="text-xs font-medium">{meta.label}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </motion.div>
+                )}
+
                 <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-gray-700 dark:text-gray-300">Billing Type *</label>
-                  <div className="grid grid-cols-3 gap-2">
-                    {Object.entries(TYPE_META).map(([key, meta]) => {
-                      const Icon = meta.icon;
-                      return (
-                        <button
-                          key={key}
-                          type="button"
-                          onClick={() => setForm(p => ({ ...p, type: key }))}
-                          className={`flex flex-col items-center gap-1.5 p-3 rounded-xl border text-center transition-all ${
-                            form.type === key
-                              ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400'
-                              : 'border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:border-emerald-300'
-                          }`}
-                        >
-                          <Icon size={18} />
-                          <span className="text-xs font-medium">{meta.label}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                  <p className="text-xs text-gray-400 dark:text-gray-600 mt-1">
-                    {form.type === 'monthly' && 'Charged every month in monthly invoices.'}
-                    {form.type === 'yearly' && 'Charged once per academic session.'}
-                    {form.type === 'one_time' && 'Charged once per student (e.g. at admission).'}
-                  </p>
+                  <label className="text-xs font-medium text-gray-700 dark:text-gray-300">Global Preset Amount (₹) - Optional</label>
+                  <input
+                    type="number"
+                    value={form.preset_amount}
+                    onChange={e => setForm(p => ({ ...p, preset_amount: e.target.value }))}
+                    placeholder="Leave blank to set per-class in matrix"
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-sm text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  />
+                  <p className="text-[10px] text-gray-400 dark:text-gray-600 mt-1">If set, this amount applies to all classes globally automatically.</p>
                 </div>
+
               </div>
 
-              {/* Modal footer */}
               <div className="px-5 pb-5 flex gap-2">
                 <button
                   onClick={closeForm}

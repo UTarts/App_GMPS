@@ -570,6 +570,9 @@ function MyStudentsSection({ teacherId, students, onBack, showModal }) {
 // ----------------------------------------------------------------------
 // SUB-COMPONENT: STUDENT DEEP DETAIL VIEW
 // ----------------------------------------------------------------------
+// ----------------------------------------------------------------------
+// SUB-COMPONENT: STUDENT DEEP DETAIL VIEW
+// ----------------------------------------------------------------------
 function StudentDetailView({ studentId, teacherId, onClose, showModal }) {
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -668,142 +671,152 @@ function StudentDetailView({ studentId, teacherId, onClose, showModal }) {
         showModal("Saved", "Exam marks updated successfully.", "success");
     };
 
-    if(loading) return <div className="fixed inset-0 bg-white dark:bg-[#101010] z-50 flex justify-center items-center"><div className="w-8 h-8 border-4 border-blue-600 rounded-full animate-spin border-t-transparent"></div></div>;
-    if(error || !data) return <div className="fixed inset-0 bg-white dark:bg-[#101010] z-50 flex flex-col justify-center items-center"><p className="text-red-500 font-bold mb-4">Failed to load student data.</p><button onClick={onClose} className="px-4 py-2 bg-gray-200 rounded-lg text-sm font-bold">Close</button></div>;
+    if(loading) return <div className="fixed inset-0 bg-white/50 dark:bg-[#101010]/50 z-[110] flex justify-center items-center backdrop-blur-sm"><div className="w-8 h-8 border-4 border-blue-600 rounded-full animate-spin border-t-transparent"></div></div>;
+    if(error || !data) return <div className="fixed inset-0 bg-white dark:bg-[#101010] z-[110] flex flex-col justify-center items-center"><p className="text-red-500 font-bold mb-4">Failed to load student data.</p><button onClick={onClose} className="px-4 py-2 bg-gray-200 rounded-lg text-sm font-bold">Close</button></div>;
 
     const { student, attendance, marks } = data;
 
     return (
-        <motion.div 
-            initial={{ x: "100%" }} animate={{ x: 0 }} exit={{ x: "100%" }} transition={{ type: "spring", damping: 25, stiffness: 200 }}
-            className="fixed inset-0 bg-[#F2F6FA] dark:bg-[#0a0a0a] z-50 flex flex-col overflow-hidden"
-        >
-            <div className="bg-white dark:bg-[#151515] px-5 py-4 border-b border-gray-100 dark:border-gray-800 flex items-center gap-4 shadow-sm shrink-0">
-                <button onClick={onClose} className="p-2 -ml-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800"><ArrowLeft size={20} className="dark:text-white"/></button>
-                <div className="flex items-center gap-3">
-                    <img src={`${process.env.NEXT_PUBLIC_IMAGE_BASE_URL}${student.profile_pic}`} className="w-8 h-8 rounded-full object-cover bg-gray-200" loading="lazy" />
-                    <h2 className="text-sm font-black text-gray-800 dark:text-white">{student.name}</h2>
-                </div>
-            </div>
-
-            <div className="flex-1 overflow-y-auto p-4 space-y-6">
-                <div className="bg-white dark:bg-[#151515] p-5 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 text-center">
-                    <div className="w-24 h-24 mx-auto rounded-full p-1 bg-gradient-to-tr from-blue-500 to-purple-500 mb-3">
-                        <img src={`${process.env.NEXT_PUBLIC_IMAGE_BASE_URL}${student.profile_pic}`} className="w-full h-full rounded-full object-cover border-4 border-white dark:border-[#151515] bg-white" loading="lazy" />
+        <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-md flex items-end sm:items-center justify-center p-0 sm:p-4">
+            <motion.div 
+                initial={{y:'100%'}} animate={{y:0}} exit={{y:'100%'}} transition={{type: "spring", damping: 25, stiffness: 200}}
+                className="bg-white dark:bg-[#151515] w-full max-w-lg rounded-t-3xl sm:rounded-3xl p-6 h-[90vh] overflow-y-auto relative shadow-2xl custom-scrollbar"
+            >
+                {/* Close Button mapped to onClose prop */}
+                <button onClick={onClose} className="absolute top-4 right-4 bg-gray-100 dark:bg-gray-800 p-2 rounded-full z-10 transition-transform active:scale-95">
+                    <X size={20}/>
+                </button>
+                
+                <div className="space-y-6">
+                    {/* Profile Header */}
+                    <div className="flex flex-col items-center pt-2">
+                        <div className="w-24 h-24 rounded-full border-4 border-gray-100 dark:border-gray-800 overflow-hidden mb-3 shadow-sm bg-gray-100 relative">
+                            <img 
+                                src={`${process.env.NEXT_PUBLIC_IMAGE_BASE_URL}${student?.profile_pic || 'GMPSimages/default_student.png'}`} 
+                                className="w-full h-full object-cover"
+                                loading="lazy"
+                            />
+                        </div>
+                        <h2 className="text-xl font-black text-center text-gray-900 dark:text-white">
+                            {student?.name}
+                        </h2>
+                        <p className="text-sm font-bold text-gray-500">
+                            {student?.login_id}
+                        </p>
                     </div>
-                    <h2 className="text-xl font-black text-gray-900 dark:text-white">{student.name}</h2>
-                    <p className="text-sm text-gray-500 dark:text-gray-400 font-medium">Roll No: {student.roll_no} | {student.login_id}</p>
-                </div>
 
-                <div className="flex p-1 bg-white dark:bg-[#151515] rounded-xl shadow-sm border border-gray-100 dark:border-gray-800">
-                    {['profile', 'attendance', 'marks'].map(t => (
-                        <button key={t} onClick={() => setTab(t)} className={`flex-1 py-2.5 text-xs font-bold rounded-lg capitalize transition-all ${tab===t ? 'bg-blue-600 text-white shadow-md' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800'}`}>{t}</button>
-                    ))}
-                </div>
-
-                {tab === 'profile' && (
-                    <div className="bg-white dark:bg-[#151515] p-5 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 space-y-4">
-                        <InfoRow label="Father" value={student.father_name} icon={User} />
-                        <InfoRow label="Mother" value={student.mother_name} icon={User} />
-                        <InfoRow label="Contact" value={student.contact} icon={Phone} />
-                        <InfoRow label="Address" value={student.address} icon={MapPin} />
-                        <InfoRow label="Admission Year" value={student.admission_year} icon={Calendar} />
+                    {/* Read-Only Data Grid */}
+                    <div className="grid grid-cols-2 gap-4">
+                        <ReadOnlyField label="Full Name" val={student?.name} />
+                        <ReadOnlyField label="DOB" val={student?.dob} />
+                        <ReadOnlyField label="Father's Name" val={student?.father_name} />
+                        <ReadOnlyField label="Mother's Name" val={student?.mother_name} />
+                        <ReadOnlyField label="Contact" val={student?.contact} />
+                        <ReadOnlyField label="Roll No" val={student?.roll_no} />
+                        <ReadOnlyField label="Aadhar No" val={student?.aadhar_no} />
+                        <ReadOnlyField label="Class" val={student?.class_name} />
                     </div>
-                )}
+                    <ReadOnlyField label="Address" val={student?.address} />
 
-                {tab === 'attendance' && (
-                    <div className="space-y-3">
-                        {attendance && Object.entries(attendance).map(([m, stats]) => (
-                            <div key={m} className="bg-white dark:bg-[#151515] rounded-xl overflow-hidden border border-gray-100 dark:border-gray-800">
-                                <button onClick={() => loadMonthLogs(m)} className="w-full flex justify-between items-center p-4 hover:bg-gray-50 dark:hover:bg-gray-900">
-                                    <div className="flex items-center gap-3">
-                                        <div className="bg-blue-50 dark:bg-blue-900/20 text-blue-600 p-2 rounded-lg font-bold text-xs w-10 text-center">{new Date(0, m-1).toLocaleString('default', {month:'short'})}</div>
-                                        <div className="text-left">
-                                            <div className="text-xs text-gray-400 font-bold uppercase">Summary</div>
-                                            <div className="text-sm font-bold dark:text-white"><span className="text-green-600">{stats.present} P</span> 窶｢ <span className="text-red-500">{stats.absent} A</span></div>
-                                        </div>
-                                    </div>
-                                    {selectedMonth == m ? <ChevronUp size={18} className="dark:text-white"/> : <ChevronDown size={18} className="dark:text-white"/>}
-                                </button>
-                                {selectedMonth == m && (
-                                    <div className="bg-gray-50 dark:bg-black p-3 border-t border-gray-100 dark:border-gray-800">
-                                        <div className="grid grid-cols-5 gap-2 mb-4">
-                                            {monthLogs.map((log) => {
-                                                const isSun = new Date(log.date).getDay() === 0;
-                                                const isHol = log.status === 'holiday';
-                                                
-                                                return (
-                                                    <button 
-                                                        key={log.date} 
-                                                        onClick={() => toggleAttendanceDay(log.date, log.status)}
-                                                        disabled={isSun || isHol}
-                                                        className={`flex flex-col items-center justify-center p-2 rounded-lg border text-xs font-bold transition-all ${
-                                                            isHol ? 'bg-red-50 dark:bg-red-900/10 border-red-200 text-red-400 opacity-70 cursor-not-allowed' :
-                                                            isSun ? 'bg-orange-50 dark:bg-orange-900/10 border-orange-200 text-orange-400 opacity-60 cursor-not-allowed' :
-                                                            log.status === 'present' ? 'bg-green-100 dark:bg-green-900/20 border-green-200 dark:border-green-800 text-green-700 dark:text-green-400' : 
-                                                            'bg-red-100 dark:bg-red-900/20 border-red-200 dark:border-red-800 text-red-700 dark:text-red-400'
-                                                        }`}
-                                                    >
-                                                        <span>{new Date(log.date).getDate()}</span>
-                                                        <span className="uppercase text-[8px] opacity-80">{log.status.substring(0,1)}</span>
-                                                    </button>
-                                                )
-                                            })}
-                                        </div>
-                                        {/* SAVE BUTTON FOR ATTENDANCE */}
-                                        {modifiedAttendance.length > 0 && (
-                                            <button 
-                                                onClick={saveAttendanceChanges}
-                                                className="w-full py-3 bg-blue-600 text-white rounded-xl font-bold shadow-lg text-sm flex items-center justify-center gap-2 active:scale-95 transition-transform"
-                                            >
-                                                <Save size={16}/> Save Changes
-                                            </button>
-                                        )}
-                                    </div>
-                                )}
-                            </div>
-                        ))}
-                        {(!attendance || Object.keys(attendance).length === 0) && <p className="text-center text-gray-400 text-sm py-4">No attendance data found.</p>}
-                    </div>
-                )}
-
-                {tab === 'marks' && (
-                    <div className="space-y-4">
-                        {marks && marks.map((exam) => (
-                            <div key={exam.id} className="bg-white dark:bg-[#151515] rounded-xl border border-gray-100 dark:border-gray-800 overflow-hidden">
-                                <div className="bg-gray-50 dark:bg-[#1a1a1a] p-3 border-b border-gray-100 dark:border-gray-800 flex justify-between items-center">
-                                    <h4 className="font-bold text-sm dark:text-white">{exam.name}</h4>
-                                    <span className="text-[10px] font-bold bg-blue-100 text-blue-700 px-2 py-1 rounded">Max: {exam.max_marks}</span>
-                                </div>
-                                <div className="p-3 space-y-3">
-                                    {exam.subjects.map(sub => (
-                                        <div key={sub.code} className="flex items-center justify-between">
-                                            <span className="text-xs font-bold text-gray-600 dark:text-gray-400 w-1/2">{sub.name}</span>
-                                            <input 
-                                                type="number" 
-                                                defaultValue={sub.marks_obtained}
-                                                onChange={(e) => handleMarkChange(exam.id, sub.code, e.target.value)}
-                                                className="w-20 p-2 text-center text-sm font-bold rounded-lg border border-gray-200 bg-gray-50 focus:ring-2 ring-blue-50 outline-none dark:bg-black dark:text-white dark:border-gray-700"
-                                            />
-                                        </div>
-                                    ))}
-                                    {/* SAVE BUTTON FOR MARKS (Per Exam) */}
-                                    {modifiedMarks[exam.id] && (
-                                        <button 
-                                            onClick={() => saveMarksForExam(exam.id)}
-                                            className="w-full mt-2 py-2 bg-blue-600 text-white rounded-lg text-xs font-bold shadow-md active:scale-95 transition-transform"
-                                        >
-                                            Save {exam.name} Marks
-                                        </button>
+                    {/* Monthly Attendance Section */}
+                    <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest border-b border-gray-100 dark:border-gray-800 pb-2 mt-8 mb-4">
+                        Monthly Attendance
+                    </h3>
+                    <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
+                        {[4,5,6,7,8,9,10,11,12,1,2,3].map((m) => {
+                            // Safely access attendance data using the 'data' variable
+                            const att = attendance?.[m] || { present: 0, absent: 0, total: 0 };
+                            const total = Number(att.present) + Number(att.absent);
+                            const pct = total > 0 ? Math.round((att.present / total) * 100) : 0;
+                            
+                            return (
+                                <div key={m} className="bg-gray-50 dark:bg-[#1a1a1a] p-3 rounded-2xl border border-gray-100 dark:border-neutral-800 flex flex-col items-center text-center">
+                                    <span className="font-black text-sm text-gray-800 dark:text-gray-200 mb-1">
+                                        {['Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec','Jan','Feb','Mar'][m - (m < 4 ? -9 : 4)]}
+                                    </span>
+                                    {total === 0 ? (
+                                        <span className="text-[10px] text-gray-400 font-bold">- No Data -</span>
+                                    ) : (
+                                        <>
+                                            <div className="flex gap-2 text-[10px] font-black uppercase">
+                                                <span className="text-green-600">{att.present} P</span>
+                                                <span className="text-red-500">{att.absent} A</span>
+                                            </div>
+                                            <div className="w-full bg-gray-200 dark:bg-gray-800 h-1.5 rounded-full mt-2 overflow-hidden">
+                                                <div className="bg-green-500 h-full" style={{width: `${pct}%`}}></div>
+                                            </div>
+                                        </>
                                     )}
                                 </div>
-                            </div>
-                        ))}
-                        {(!marks || marks.length === 0) && <p className="text-center text-gray-400 text-sm py-4">No marks data found.</p>}
+                            );
+                        })}
                     </div>
-                )}
-            </div>
-        </motion.div>
+
+                    {/* Academic Performance Section */}
+                    <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest border-b border-gray-100 dark:border-gray-800 pb-2 mt-8 mb-4">
+                        Academic Performance
+                    </h3>
+                    {marks && marks.length > 0 ? marks.map(exam => {
+                        const isUT = exam.name.toLowerCase().includes('ut') || exam.name.toLowerCase().includes('periodic');
+                        return (
+                            <div key={exam.id} className="mb-6 bg-white dark:bg-[#151515] rounded-2xl border border-gray-200 dark:border-neutral-800 overflow-hidden shadow-sm">
+                                <div className="bg-blue-50 dark:bg-blue-900/20 px-4 py-3 border-b border-gray-200 dark:border-neutral-800">
+                                    <h4 className="text-sm font-black text-blue-800 dark:text-blue-400 uppercase tracking-wide">{exam.name}</h4>
+                                </div>
+                                <div className="overflow-x-auto custom-scrollbar">
+                                    <table className="w-full text-left text-xs">
+                                        <thead>
+                                            <tr className="bg-gray-50 dark:bg-[#1a1a1a] border-b border-gray-100 dark:border-neutral-800 text-gray-500 uppercase tracking-wider">
+                                                <th className="p-3 font-bold">Subject</th>
+                                                {isUT ? (
+                                                    <th className="p-3 font-bold text-center">Marks (20)</th>
+                                                ) : (
+                                                    <>
+                                                        <th className="p-3 font-bold text-center">PT</th>
+                                                        <th className="p-3 font-bold text-center">NB</th>
+                                                        <th className="p-3 font-bold text-center">SE</th>
+                                                        <th className="p-3 font-bold text-center">Exam</th>
+                                                    </>
+                                                )}
+                                                <th className="p-3 font-bold text-center text-gray-900 dark:text-gray-100">Total</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-gray-100 dark:divide-neutral-800">
+                                            {exam.subjects.map((res, i) => {
+                                                const pt = Number(res.pt_marks || 0);
+                                                const nb = Number(res.notebook_marks || 0);
+                                                const se = Number(res.enrichment_marks || 0);
+                                                const exm = Number(res.marks_obtained || res.exam_marks || 0);
+                                                
+                                                const hasGranular = res.pt_marks !== undefined;
+                                                const total = hasGranular && !isUT ? (pt + nb + se + exm) : exm;
+
+                                                return (
+                                                    <tr key={i} className={`hover:bg-gray-50 dark:hover:bg-[#1a1a1a] transition-colors ${res.is_absent == 1 ? 'opacity-50 text-red-500' : ''}`}>
+                                                        <td className="p-3 font-bold text-gray-800 dark:text-gray-200 uppercase">{res.name}</td>
+                                                        {isUT ? (
+                                                            <td className="p-3 text-center font-bold">{res.is_absent == 1 ? 'AB' : exm}</td>
+                                                        ) : (
+                                                            <>
+                                                                <td className="p-3 text-center">{res.is_absent == 1 ? '-' : res.pt_marks || '-'}</td>
+                                                                <td className="p-3 text-center">{res.is_absent == 1 ? '-' : res.notebook_marks || '-'}</td>
+                                                                <td className="p-3 text-center">{res.is_absent == 1 ? '-' : res.enrichment_marks || '-'}</td>
+                                                                <td className="p-3 text-center">{res.is_absent == 1 ? '-' : exm || '-'}</td>
+                                                            </>
+                                                        )}
+                                                        <td className="p-3 text-center font-black text-blue-600 dark:text-blue-400">{res.is_absent == 1 ? 'AB' : total}</td>
+                                                    </tr>
+                                                );
+                                            })}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        );
+                    }) : <div className="text-sm text-gray-400 italic text-center p-4">No exams recorded yet.</div>}
+                </div>
+            </motion.div>
+        </div>
     );
 }
 
@@ -1013,6 +1026,15 @@ function RepeaterSection({ title, color, items, setter, fileKey, placeholder, ic
         </div>
     );
 }
+
+const ReadOnlyField = ({ label, val }) => (
+    <div className="space-y-1">
+        <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider ml-1">{label}</label>
+        <div className="text-sm font-bold text-gray-800 dark:text-gray-200 border-b border-gray-100 dark:border-neutral-800 pb-1.5 pl-1 min-h-[28px]">
+            {val || '-'}
+        </div>
+    </div>
+);
 
 // Helper: Defaulters
 function DefaulterSection({ items, setter, students }) {

@@ -1,247 +1,174 @@
-"use client";
-import { useState, useRef, useEffect, useCallback } from 'react';
+'use client';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '../../../context/AuthContext';
-import { useAppModal } from '../../../context/ModalContext';
-import {
-  Search, User, Phone, BookOpen, ArrowRight, Loader2,
-  X, BookMarked, SlidersHorizontal, ChevronRight, GraduationCap
-} from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { Search, Loader2, ArrowLeft, ArrowRight, User, Banknote, CalendarDays, Plus, Tag, ShieldCheck, FileText } from 'lucide-react';
+import Link from 'next/link';
 
-const getToken = () => {
-  try { return JSON.parse(localStorage.getItem('gmps_user') || '{}')?.token || ''; }
-  catch { return ''; }
-};
-
-const safeFetchJson = async (url, options = {}) => {
+const safeFetchJson = async (url) => {
   try {
-    const token = getToken();
-    const headers = {
-      ...(options.headers || {}),
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    };
-    const res = await fetch(url, { ...options, headers });
-    const text = await res.text();
-    return JSON.parse(text);
-  } catch (err) {
-    return { success: false, message: 'Network/server error.' };
-  }
+    const token = JSON.parse(localStorage.getItem('gmps_user') || '{}')?.token || '';
+    const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+    return JSON.parse(await res.text());
+  } catch { return { success: false }; }
 };
 
-const AVATAR_COLORS = [
-  'from-emerald-400 to-teal-500',
-  'from-blue-400 to-indigo-500',
-  'from-violet-400 to-purple-500',
-  'from-orange-400 to-rose-500',
-  'from-amber-400 to-yellow-500',
-  'from-cyan-400 to-sky-500',
-];
+const modeIcon = (mode) => ({ cash: Banknote, upi: Banknote, cheque: FileText, bank_transfer: ShieldCheck, extra_fee: Plus, discount: Tag }[mode] || Banknote);
+const modeLabel = (mode) => ({ cash: 'Cash', upi: 'UPI', cheque: 'Cheque', bank_transfer: 'Bank Transfer', extra_fee: 'Extra Item Added', discount: 'Discount Granted' }[mode] || mode);
 
-const avatarColor = (name = '') => AVATAR_COLORS[name.charCodeAt(0) % AVATAR_COLORS.length];
-
-export default function LedgerPage() {
+export default function LedgerSearchPage() {
   const { user } = useAuth();
   const router = useRouter();
-  const { showModal } = useAppModal();
-
-  const [query, setQuery] = useState('');
+  const [q, setQ] = useState('');
   const [results, setResults] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [searched, setSearched] = useState(false);
-  const [recent, setRecent] = useState([]);
-  const inputRef = useRef(null);
-  const debounceRef = useRef(null);
+  const [timeline, setTimeline] = useState([]);
+  const [searching, setSearching] = useState(false);
+  const [loadingTime, setLoadingTime] = useState(true);
 
   useEffect(() => {
-    if (!user) return;
-    if (user.role !== 'admin') { router.replace('/'); return; }
-    // Load recent from localStorage
-    try {
-      const r = JSON.parse(localStorage.getItem('ledger_recent') || '[]');
-      setRecent(r.slice(0, 5));
-    } catch { }
-    setTimeout(() => inputRef.current?.focus(), 300);
+    if (!user || user.role !== 'admin') { router.replace('/'); return; }
+    loadTimeline();
   }, [user]);
 
-  const doSearch = useCallback(async (q) => {
-    if (q.trim().length < 2) { setResults([]); setSearched(false); return; }
-    setLoading(true);
-    setSearched(true);
-    const json = await safeFetchJson(
-      `${process.env.NEXT_PUBLIC_API_URL}/fin_api.php?action=search_student&q=${encodeURIComponent(q.trim())}`
-    );
-    setLoading(false);
-    if (json.success) setResults(json.students || []);
-    else showModal('Error', json.message || 'Search failed.', 'danger');
-  }, [showModal]);
-
-  const handleInput = (e) => {
-    const val = e.target.value;
-    setQuery(val);
-    clearTimeout(debounceRef.current);
-    if (val.trim().length >= 2) {
-      debounceRef.current = setTimeout(() => doSearch(val), 380);
-    } else {
-      setResults([]); setSearched(false);
-    }
+  const loadTimeline = async () => {
+    setLoadingTime(true);
+    const json = await safeFetchJson(`${process.env.NEXT_PUBLIC_API_URL}/fin_api.php?action=get_global_timeline`);
+    if (json.success) setTimeline(json.timeline || []);
+    setLoadingTime(false);
   };
 
-  const openStudent = (student) => {
-    // Save to recent
-    try {
-      const r = JSON.parse(localStorage.getItem('ledger_recent') || '[]');
-      const filtered = r.filter(s => s.id !== student.id);
-      const updated = [student, ...filtered].slice(0, 5);
-      localStorage.setItem('ledger_recent', JSON.stringify(updated));
-      setRecent(updated);
-    } catch { }
-    router.push(`/accountant/ledger/student?id=${student.id}`);
+  useEffect(() => {
+    const delay = setTimeout(async () => {
+      if (q.length < 2) return setResults([]);
+      setSearching(true);
+      const json = await safeFetchJson(`${process.env.NEXT_PUBLIC_API_URL}/fin_api.php?action=search_student&q=${encodeURIComponent(q)}`);
+      setSearching(false);
+      if (json.success) setResults(json.students || []);
+    }, 400);
+    return () => clearTimeout(delay);
+  }, [q]);
+
+  const groupTimeline = () => {
+    const groups = {};
+    timeline.forEach(t => {
+      const date = new Date(t.created_at).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+      if (!groups[date]) groups[date] = [];
+      groups[date].push(t);
+    });
+    return groups;
   };
-
-  const clearSearch = () => { setQuery(''); setResults([]); setSearched(false); inputRef.current?.focus(); };
-
-  const StudentCard = ({ student, index = 0 }) => (
-    <motion.button
-      initial={{ opacity: 0, y: 12 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: index * 0.04, duration: 0.28 }}
-      onClick={() => openStudent(student)}
-      className="w-full flex items-center gap-4 p-4 rounded-2xl bg-white dark:bg-zinc-800/60 border border-gray-100 dark:border-zinc-700/50 hover:border-emerald-300 dark:hover:border-emerald-500/40 hover:shadow-md hover:shadow-emerald-500/5 transition-all duration-200 text-left group"
-    >
-      {/* Avatar */}
-      <div className={`w-11 h-11 rounded-xl bg-gradient-to-br ${avatarColor(student.name)} flex items-center justify-center text-white font-bold text-base flex-shrink-0`}>
-        {student.name?.[0]?.toUpperCase() || '?'}
-      </div>
-      {/* Info */}
-      <div className="flex-1 min-w-0">
-        <p className="font-semibold text-gray-900 dark:text-white truncate text-sm">{student.name}</p>
-        <p className="text-xs text-gray-500 dark:text-zinc-400 truncate mt-0.5">
-          {student.father_name && <span>{student.father_name} · </span>}
-          <span className="text-emerald-600 dark:text-emerald-400 font-medium">{student.class_name}</span>
-        </p>
-      </div>
-      {/* Right info */}
-      <div className="flex flex-col items-end gap-1 flex-shrink-0">
-        {student.login_id && (
-          <span className="text-xs font-mono bg-gray-100 dark:bg-zinc-700 text-gray-500 dark:text-zinc-400 px-2 py-0.5 rounded-lg">{student.login_id}</span>
-        )}
-        {student.contact && (
-          <span className="text-xs text-gray-400 dark:text-zinc-500 flex items-center gap-1">
-            <Phone size={10} />{student.contact}
-          </span>
-        )}
-      </div>
-      <ChevronRight size={16} className="text-gray-300 dark:text-zinc-600 group-hover:text-emerald-500 transition-colors flex-shrink-0" />
-    </motion.button>
-  );
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-zinc-900 pb-24">
-      {/* Header */}
-      <div className="sticky top-0 z-30 bg-white/90 dark:bg-zinc-900/90 backdrop-blur-lg border-b border-gray-100 dark:border-zinc-800">
-        <div className="max-w-xl mx-auto px-4 py-4 flex items-center gap-3">
-          <BookMarked size={20} className="text-emerald-500 flex-shrink-0" />
-          <div>
-            <h1 className="text-base font-bold text-gray-900 dark:text-white leading-tight">Student Ledger</h1>
-            <p className="text-xs text-gray-400 dark:text-zinc-500">Search by name, ID or father's name</p>
-          </div>
+    <div className="min-h-screen bg-gray-50 dark:bg-[#0a0a0a] pb-24 font-sans">
+      <div className="sticky top-0 z-30 bg-white/80 dark:bg-black/80 backdrop-blur-md px-4 py-4 border-b border-gray-100 dark:border-neutral-800 flex items-center gap-3">
+        <Link href="/accountant/profile" className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-neutral-800 transition-colors">
+          <ArrowLeft className="w-5 h-5 text-gray-600 dark:text-gray-300" />
+        </Link>
+        <div>
+          <h1 className="text-base font-black text-gray-900 dark:text-white">Student Ledgers</h1>
+          <p className="text-[10px] text-gray-500 uppercase tracking-widest font-bold">Search & History</p>
         </div>
       </div>
 
-      <div className="max-w-xl mx-auto px-4 pt-5 space-y-5">
-        {/* Search Box */}
-        <motion.div
-          initial={{ opacity: 0, y: -10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.3 }}
-          className="relative"
-        >
-          <div className="flex items-center gap-3 bg-white dark:bg-zinc-800 border-2 border-gray-200 dark:border-zinc-700 focus-within:border-emerald-400 dark:focus-within:border-emerald-500 rounded-2xl px-4 py-3 shadow-sm transition-all duration-200">
-            {loading
-              ? <Loader2 size={18} className="text-emerald-500 animate-spin flex-shrink-0" />
-              : <Search size={18} className="text-gray-400 dark:text-zinc-500 flex-shrink-0" />
-            }
-            <input
-              ref={inputRef}
-              type="text"
-              value={query}
-              onChange={handleInput}
-              placeholder="Type name, ID, or father's name…"
-              className="flex-1 bg-transparent outline-none text-sm text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-zinc-500"
-              autoComplete="off"
-            />
-            {query && (
-              <button onClick={clearSearch} className="text-gray-400 dark:text-zinc-500 hover:text-gray-600 dark:hover:text-zinc-300 transition-colors">
-                <X size={16} />
-              </button>
-            )}
-          </div>
-          {/* Hint pills */}
-          <div className="flex gap-2 mt-2 flex-wrap">
-            {['By Name', 'By ID', "By Father's Name"].map(hint => (
-              <span key={hint} className="text-xs bg-gray-100 dark:bg-zinc-800 text-gray-500 dark:text-zinc-400 px-2.5 py-1 rounded-full flex items-center gap-1">
-                <SlidersHorizontal size={10} />{hint}
-              </span>
-            ))}
-          </div>
-        </motion.div>
+      <div className="max-w-2xl mx-auto px-4 pt-6 space-y-6">
+        
+        {/* Search Bar */}
+        <div className="relative">
+          <input type="text" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search by name, father's name..." className="w-full pl-12 pr-4 py-4 rounded-[2rem] bg-white dark:bg-[#151515] border border-gray-200 dark:border-neutral-800 shadow-sm text-sm font-bold text-gray-900 dark:text-white outline-none focus:border-emerald-500 transition-colors" />
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
+          {searching && <Loader2 className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 text-emerald-500 animate-spin" />}
+        </div>
 
         {/* Results */}
-        <AnimatePresence mode="wait">
-          {searched && !loading && (
-            <motion.div key="results" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-              {results.length === 0 ? (
-                <motion.div
-                  initial={{ opacity: 0, scale: 0.95 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  className="text-center py-12"
-                >
-                  <div className="w-16 h-16 rounded-2xl bg-gray-100 dark:bg-zinc-800 flex items-center justify-center mx-auto mb-3">
-                    <GraduationCap size={28} className="text-gray-300 dark:text-zinc-600" />
+        {q.length >= 2 && (
+          <div className="bg-white dark:bg-[#151515] rounded-[2rem] border border-gray-100 dark:border-neutral-800 overflow-hidden shadow-lg p-2 space-y-1">
+            {results.length === 0 && !searching ? (
+              <div className="p-6 text-center text-gray-500 text-sm font-bold">No students found.</div>
+            ) : (
+              results.map(s => (
+                <Link key={s.id} href={`/accountant/ledger/student?id=${s.id}`} className="flex items-center justify-between p-3 rounded-2xl hover:bg-gray-50 dark:hover:bg-neutral-900 transition-colors group">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-emerald-50 dark:bg-emerald-900/30 flex items-center justify-center text-emerald-600"><User size={18} /></div>
+                    <div>
+                      <p className="text-sm font-black text-gray-900 dark:text-white">{s.name}</p>
+                      <p className="text-[10px] text-gray-500 font-bold uppercase tracking-wider">{s.class_name} • S/D/O {s.father_name}</p>
+                    </div>
                   </div>
-                  <p className="font-semibold text-gray-700 dark:text-zinc-300">No students found</p>
-                  <p className="text-sm text-gray-400 dark:text-zinc-500 mt-1">Try a different name or ID</p>
-                </motion.div>
-              ) : (
-                <div className="space-y-2">
-                  <p className="text-xs text-gray-400 dark:text-zinc-500 font-medium px-1">
-                    {results.length} result{results.length !== 1 ? 's' : ''} found
-                  </p>
-                  {results.map((s, i) => <StudentCard key={s.id} student={s} index={i} />)}
-                </div>
-              )}
-            </motion.div>
-          )}
+                  <ArrowRight size={18} className="text-gray-300 group-hover:text-emerald-500 transition-colors" />
+                </Link>
+              ))
+            )}
+          </div>
+        )}
 
-          {/* Recent — show only when not searching */}
-          {!searched && recent.length > 0 && (
-            <motion.div key="recent" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-2">
-              <p className="text-xs text-gray-400 dark:text-zinc-500 font-medium px-1 flex items-center gap-1.5">
-                <BookOpen size={11} /> Recently Viewed
-              </p>
-              {recent.map((s, i) => <StudentCard key={s.id} student={s} index={i} />)}
-            </motion.div>
-          )}
-
-          {/* Empty state — no search, no recent */}
-          {!searched && recent.length === 0 && (
-            <motion.div
-              key="idle"
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="text-center py-16"
-            >
-              <div className="w-20 h-20 rounded-3xl bg-gradient-to-br from-emerald-50 to-teal-100 dark:from-emerald-900/20 dark:to-teal-900/20 flex items-center justify-center mx-auto mb-4">
-                <Search size={32} className="text-emerald-400" />
+        {/* Global Timeline */}
+        {q.length < 2 && (
+          <div className="pt-4 max-w-2xl mx-auto w-full"> 
+            <h2 className="text-xs font-black uppercase tracking-widest text-gray-400 mb-6 flex items-center gap-2">
+              <CalendarDays size={14}/> Global Transaction Timeline
+            </h2> 
+            {loadingTime ? (
+              <div className="flex justify-center py-10">
+                <Loader2 className="animate-spin text-emerald-500" />
               </div>
-              <p className="font-semibold text-gray-700 dark:text-zinc-300 text-base">Find a Student</p>
-              <p className="text-sm text-gray-400 dark:text-zinc-500 mt-1.5 max-w-xs mx-auto">
-                Search by name, admission ID, or father's name to view their complete fee ledger
-              </p>
-            </motion.div>
-          )}
-        </AnimatePresence>
+            ) : timeline.length === 0 ? (
+              <p className="text-center text-sm font-bold text-gray-500">No recent transactions.</p>
+            ) : ( 
+              /* Removed the md split layout properties below so it maintains consistent left alignment on all sizes */
+              <div className="space-y-8 relative before:absolute before:inset-0 before:left-5 before:-translate-x-1/2 before:h-full before:w-0.5 before:bg-gradient-to-b before:from-transparent before:via-gray-200 dark:before:via-neutral-800 before:to-transparent"> 
+                {Object.entries(groupTimeline()).map(([date, txns]) => ( 
+                  <div key={date} className="relative z-10"> 
+                    <div className="flex justify-start pl-12 mb-4">
+                      <span className="px-3 py-1 bg-gray-100 dark:bg-neutral-900 text-gray-500 dark:text-gray-400 text-[10px] font-black uppercase tracking-widest rounded-full border border-gray-200 dark:border-neutral-800">
+                        {date}
+                      </span>
+                    </div> 
+                    <div className="space-y-3"> 
+                      {txns.map(t => { 
+                        const Icon = modeIcon(t.payment_mode); 
+                        const isExtra = t.payment_mode === 'extra_fee'; 
+                        const isDiscount = t.payment_mode === 'discount'; 
+                        let amtColor = "text-emerald-600 dark:text-emerald-400"; 
+                        let amtPrefix = ""; 
+                        if (isExtra) { 
+                          amtColor = "text-amber-600 dark:text-amber-400"; 
+                          amtPrefix = "+ "; 
+                        } else if (isDiscount) { 
+                          amtColor = "text-purple-600 dark:text-purple-400"; 
+                          amtPrefix = "- "; 
+                        } 
+                        return ( 
+                          /* Cleaned layout links: left padded across all views to match mobile styling uniformly */
+                          <Link key={t.id} href={`/accountant/ledger/student?id=${t.student_id}`} className="block relative pl-12 flex"> 
+                            <div className="w-full group"> 
+                              <div className="bg-white dark:bg-[#151515] p-4 rounded-3xl border border-gray-100 dark:border-neutral-800 shadow-sm hover:border-emerald-500 transition-colors"> 
+                                <div className="flex items-center justify-between mb-1"> 
+                                  <p className="text-[10px] text-gray-400 font-bold uppercase">
+                                    {new Date(t.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+                                  </p> 
+                                  <p className={`text-sm font-black ${amtColor} flex items-center gap-1`}>
+                                    {amtPrefix}₹{t.amount_paid} <Icon size={14}/>
+                                  </p> 
+                                </div> 
+                                <p className="text-sm font-black text-gray-900 dark:text-white truncate">{t.student_name}</p> 
+                                <p className="text-[10px] text-gray-500 font-bold uppercase mt-0.5">
+                                  {t.class_name} • {t.remarks || modeLabel(t.payment_mode)}
+                                </p> 
+                              </div> 
+                            </div> 
+                            <div className="absolute left-0 top-1/2 -translate-y-1/2 w-10 h-10 flex items-center justify-center"> 
+                              <div className="w-3 h-3 bg-emerald-500 rounded-full border-4 border-gray-50 dark:border-[#0a0a0a] box-content"></div> 
+                            </div> 
+                          </Link> 
+                        ); 
+                      })} 
+                    </div> 
+                  </div> 
+                ))} 
+              </div> 
+            )} 
+          </div> 
+        )}
       </div>
     </div>
   );

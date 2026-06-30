@@ -6,10 +6,12 @@ import { useAppModal } from "../../context/ModalContext";
 import { 
     Users, BookOpen, UserCheck, Shield, Mail, Trash2, Edit3, 
     Search, Plus, X, Save, Calendar, Award, CheckCircle2, AlertCircle, Loader2, ChevronDown, Camera,
-    ArrowLeft, LayoutGrid, GraduationCap, School, LogOut, Printer, Settings 
+    ArrowLeft, LayoutGrid, GraduationCap, School, LogOut, Printer, Settings, IndianRupee, ChevronRight 
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Link from 'next/link';
+import StaffManagementModule from './staff/page';
+import SalarySetupModule from './salary/page';
 
 // --- BULLETPROOF JSON PARSER ---
 const safeFetchJson = async (url, options = {}) => {
@@ -67,6 +69,26 @@ export default function AdminProfile() {
 
     const addFormRef = useRef(null);
     const editFormRef = useRef(null);
+
+    // --- NEW: Search States ---
+    const [searchQuery, setSearchQuery] = useState('');
+    const [searchResults, setSearchResults] = useState([]);
+    const [isSearching, setIsSearching] = useState(false);
+
+    // --- NEW: Live Search Debouncer ---
+    useEffect(() => {
+        const delayDebounceFn = setTimeout(async () => {
+            if (searchQuery.length > 2) {
+                setIsSearching(true);
+                const json = await safeFetchJson(`${process.env.NEXT_PUBLIC_API_URL}/admin_data.php?action=search_students&q=${searchQuery}`);
+                if (json.status === 'success') setSearchResults(json.data);
+                setIsSearching(false);
+            } else {
+                setSearchResults([]);
+            }
+        }, 400); // Waits 400ms after user stops typing to fetch
+        return () => clearTimeout(delayDebounceFn);
+    }, [searchQuery]);
 
     // --- NEW: URL SHORTCUT LISTENER & SECURITY LOCK ---
     useEffect(() => {
@@ -220,23 +242,28 @@ export default function AdminProfile() {
         fd.append('id', detailModal.type === 'student' ? detailModal.data.profile.id : detailModal.data.id);
 
         try {
-            await safeFetchJson(`${process.env.NEXT_PUBLIC_API_URL}/admin_data.php`, { method: 'POST', body: fd });
-            showModal("Success", "Changes saved successfully.", "success");
-            setDetailModal(null);
+            const res = await safeFetchJson(`${process.env.NEXT_PUBLIC_API_URL}/admin_data.php`, { method: 'POST', body: fd });
             
-            if(activeTab === 'students') loadStudents(selectedClass);
-            if(activeTab === 'teachers') fetchTeachers();
-            if(activeTab === 'admins') fetchAdmins();
-            
-            if(detailModal.type === 'admin' && detailModal.data.id === user.id) {
-                 const aJson = await safeFetchJson(`${process.env.NEXT_PUBLIC_API_URL}/admin_data.php?action=get_admins`);
-                 if (aJson.status === 'success') {
-                     const me = aJson.data.find(a => a.id == user.id);
-                     if (me) setCurrentProfile(me);
-                 }
+            if (res.status === 'success') {
+                showModal("Success", "Changes saved successfully.", "success");
+                setDetailModal(null);
+                
+                if(activeTab === 'students') loadStudents(selectedClass);
+                if(activeTab === 'teachers') fetchTeachers();
+                if(activeTab === 'admins') fetchAdmins();
+                
+                if(detailModal.type === 'admin' && detailModal.data.id === user.id) {
+                     const aJson = await safeFetchJson(`${process.env.NEXT_PUBLIC_API_URL}/admin_data.php?action=get_admins`);
+                     if (aJson.status === 'success') {
+                         const me = aJson.data.find(a => a.id == user.id);
+                         if (me) setCurrentProfile(me);
+                     }
+                }
+            } else {
+                showModal("Update Failed", res.message || "Database rejected the changes.", "danger");
             }
         } catch (error) {
-            showModal("Error", "Failed to save changes.", "danger");
+            showModal("Error", "Failed to connect to the server.", "danger");
         }
     };
 
@@ -246,16 +273,21 @@ export default function AdminProfile() {
         fd.append('action', `add_${addModalType}`);
         
         try {
-            await safeFetchJson(`${process.env.NEXT_PUBLIC_API_URL}/admin_data.php`, { method: 'POST', body: fd });
-            showModal("Added!", `New ${addModalType} added successfully.`, "success");
-            setAddModalType(null);
-            setAddModalData({});
+            const res = await safeFetchJson(`${process.env.NEXT_PUBLIC_API_URL}/admin_data.php`, { method: 'POST', body: fd });
             
-            if(addModalType === 'student' && selectedClass) loadStudents(selectedClass);
-            if(addModalType === 'teacher') fetchTeachers();
-            if(addModalType === 'admin') fetchAdmins();
+            if (res.status === 'success') {
+                showModal("Added!", `New ${addModalType} added successfully.`, "success");
+                setAddModalType(null);
+                setAddModalData({});
+                
+                if(addModalType === 'student' && selectedClass) loadStudents(selectedClass);
+                if(addModalType === 'teacher') fetchTeachers();
+                if(addModalType === 'admin') fetchAdmins();
+            } else {
+                showModal("Action Failed", res.message || "Failed to add record to the database.", "danger");
+            }
         } catch (error) {
-            showModal("Error", "Failed to add.", "danger");
+            showModal("Network Error", "Failed to connect to the server.", "danger");
         }
     };
 
@@ -414,6 +446,19 @@ export default function AdminProfile() {
                                             </div>
                                             <span className="text-xs font-bold text-gray-800 dark:text-gray-200">Admins</span>
                                         </button>
+            
+                                        <button onClick={() => openSection('staff_mgmt')} className="p-4 rounded-3xl border flex flex-col items-center text-center gap-3 hover:scale-[1.02] transition-transform bg-white dark:bg-[#151515] border-gray-100 dark:border-neutral-800 shadow-sm">
+                                            <div className="w-10 h-10 rounded-full bg-emerald-500/10 text-emerald-500 flex items-center justify-center">
+                                                <Users size={20} />
+                                            </div>
+                                            <span className="text-xs font-bold text-gray-800 dark:text-gray-200">Staff Management</span>
+                                        </button>
+                                        <button onClick={() => openSection('salary_setup')} className="p-4 rounded-3xl border flex flex-col items-center text-center gap-3 hover:scale-[1.02] transition-transform bg-white dark:bg-[#151515] border-gray-100 dark:border-neutral-800 shadow-sm">
+                                            <div className="w-10 h-10 rounded-full bg-emerald-500/10 text-emerald-500 flex items-center justify-center">
+                                                <IndianRupee size={20} />
+                                            </div>
+                                            <span className="text-xs font-bold text-gray-800 dark:text-gray-200">Salary Setup</span>
+                                        </button>
                                     </>
                                 )}
                                 
@@ -503,38 +548,105 @@ export default function AdminProfile() {
                             </div>
                         )}
 
-                        {activeTab === 'students' && (
-                            <div>
-                                <div className="mb-6">
-                                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2 block ml-2">Select Class View</label>
-                                    <div className="relative">
-                                        <select className={dropdownStyle} onChange={(e) => loadStudents(e.target.value)} value={selectedClass || ""}>
-                                            <option value="" disabled>Choose a class...</option>
-                                            {classes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                                        </select>
+{activeTab === 'students' && (
+                            <div className="space-y-6 pb-10">
+                                
+                                {/* 1. GLOBAL SEARCH BAR */}
+                                <div className="relative z-20">
+                                    <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                                        <Search size={18} className="text-gray-400" />
                                     </div>
-                                </div>
-
-                                <div className="grid grid-cols-2 gap-3 pb-10">
-                                    <button onClick={handleAddStudentClick} className="bg-indigo-50 dark:bg-indigo-900/10 border-2 border-dashed border-indigo-200 dark:border-indigo-800 rounded-2xl p-4 flex flex-col items-center justify-center gap-2 text-indigo-600 dark:text-indigo-400 min-h-[120px]">
-                                        <div className="w-10 h-10 rounded-full bg-white dark:bg-[#151515] flex items-center justify-center shadow-sm">
-                                            <Plus size={20} />
-                                        </div>
-                                        <span className="text-xs font-bold">Add Student</span>
-                                    </button>
-
-                                    {studentLoading ? (
-                                        <p className="col-span-2 text-center text-xs text-gray-400 py-4">Loading...</p>
-                                    ) : (
-                                        classStudents.map(s => (
-                                            <motion.div key={s.id} whileTap={{scale:0.98}} onClick={() => openStudentDetail(s.id)} className="bg-white dark:bg-[#151515] p-3 rounded-2xl shadow-sm border border-gray-100 dark:border-neutral-800 flex flex-col items-center text-center cursor-pointer">
-                                                <img src={`${process.env.NEXT_PUBLIC_IMAGE_BASE_URL}${s.profile_pic || 'GMPSimages/default_student.png'}`} className="w-12 h-12 rounded-full object-cover mb-2 bg-gray-100 border border-gray-100 dark:border-gray-700" loading="lazy" />
-                                                <h4 className="text-xs font-bold line-clamp-1">{s.name}</h4>
-                                                <p className="text-[10px] text-gray-400">Roll: {s.roll_no || '-'}</p>
+                                    <input 
+                                        type="text" 
+                                        placeholder="Search any student by name..." 
+                                        className="w-full pl-11 pr-10 py-4 bg-white dark:bg-[#151515] border border-gray-200 dark:border-neutral-800 rounded-3xl text-sm font-bold outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all dark:text-white shadow-sm"
+                                        value={searchQuery}
+                                        onChange={(e) => setSearchQuery(e.target.value)}
+                                    />
+                                    {isSearching && <Loader2 size={16} className="absolute inset-y-0 right-4 my-auto animate-spin text-indigo-500" />}
+                                    
+                                    {/* Live Search Dropdown */}
+                                    <AnimatePresence>
+                                        {searchQuery.length > 2 && (
+                                            <motion.div initial={{opacity:0, y:-10}} animate={{opacity:1, y:0}} exit={{opacity:0, y:-10}} className="absolute top-full left-0 w-full mt-2 bg-white dark:bg-[#1a1a1a] border border-gray-100 dark:border-neutral-800 rounded-3xl shadow-2xl overflow-hidden max-h-80 overflow-y-auto custom-scrollbar">
+                                                {searchResults.length === 0 && !isSearching ? (
+                                                    <div className="p-6 text-center text-xs text-gray-400 font-bold">No students matched "{searchQuery}"</div>
+                                                ) : (
+                                                    searchResults.map(s => (
+                                                        <div key={s.id} onClick={() => {openStudentDetail(s.id); setSearchQuery('');}} className="flex items-center gap-4 p-4 hover:bg-indigo-50 dark:hover:bg-neutral-800 cursor-pointer border-b border-gray-50 dark:border-neutral-800 last:border-0 transition-colors group">
+                                                            <img src={`${process.env.NEXT_PUBLIC_IMAGE_BASE_URL}${s.profile_pic || 'GMPSimages/default_student.png'}`} className="w-12 h-12 rounded-full object-cover bg-gray-100 border border-gray-200 dark:border-neutral-700" loading="lazy" />
+                                                            <div>
+                                                                <h4 className="text-sm font-black text-gray-900 dark:text-white leading-tight group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">{s.name}</h4>
+                                                                <p className="text-[10px] font-bold text-gray-500 mt-0.5">{s.class_name} • Parent: {s.father_name || 'N/A'}</p>
+                                                            </div>
+                                                            <div className="ml-auto p-2 bg-gray-50 dark:bg-neutral-900 rounded-full group-hover:bg-white dark:group-hover:bg-[#151515] transition-colors"><ChevronRight size={16} className="text-gray-400"/></div>
+                                                        </div>
+                                                    ))
+                                                )}
                                             </motion.div>
-                                        ))
-                                    )}
+                                        )}
+                                    </AnimatePresence>
                                 </div>
+
+                                {/* 2. SMART ADD STUDENT BUTTON */}
+                                <button onClick={handleAddStudentClick} className="w-full bg-indigo-50 dark:bg-indigo-900/10 border-2 border-dashed border-indigo-200 dark:border-indigo-800 rounded-3xl p-4 flex items-center justify-center gap-3 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-900/20 transition-colors shadow-sm active:scale-[0.98]">
+                                    <div className="w-8 h-8 rounded-full bg-white dark:bg-[#151515] flex items-center justify-center shadow-sm">
+                                        <Plus size={16} />
+                                    </div>
+                                    <span className="text-sm font-bold">Add New Student</span>
+                                </button>
+
+                                {/* 3. DYNAMIC VIEW: CLASS CARDS OR STUDENT GRID */}
+                                {!selectedClass ? (
+                                    <div className="animate-in fade-in slide-in-from-bottom-4 duration-300">
+                                        <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3 ml-2 flex items-center gap-2"><LayoutGrid size={14}/> Browse by Class</h3>
+                                        <div className="grid grid-cols-2 gap-3">
+                                            {classes.map(c => (
+                                                <motion.div key={c.id} whileTap={{scale:0.96}} onClick={() => loadStudents(c.id)} className="bg-white dark:bg-[#151515] p-5 rounded-[2rem] shadow-sm border border-gray-100 dark:border-neutral-800 flex flex-col justify-center gap-3 cursor-pointer hover:border-indigo-500/50 transition-colors group relative overflow-hidden">
+                                                    <div className="absolute -right-4 -bottom-4 opacity-5 group-hover:scale-125 transition-transform duration-500"><Users size={80}/></div>
+                                                    <div className="w-12 h-12 rounded-full bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400 flex items-center justify-center group-hover:bg-indigo-600 group-hover:text-white transition-colors z-10">
+                                                        <School size={22} />
+                                                    </div>
+                                                    <div className="z-10">
+                                                        <h4 className="font-black text-gray-900 dark:text-white text-base leading-none mb-1">{c.name}</h4>
+                                                        <p className="text-[10px] font-bold text-gray-500 uppercase">{c.student_count || 0} Students</p>
+                                                    </div>
+                                                </motion.div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div className="animate-in slide-in-from-right-4 duration-300">
+                                        <div className="flex items-center justify-between mb-4 bg-gray-100 dark:bg-[#151515] p-2 pr-4 rounded-full border border-gray-200 dark:border-neutral-800">
+                                            <button onClick={() => setSelectedClass(null)} className="flex items-center gap-2 p-2 bg-white dark:bg-neutral-800 rounded-full hover:bg-gray-50 font-bold text-xs pr-4 transition-colors shadow-sm">
+                                                <ArrowLeft size={16}/> Back
+                                            </button>
+                                            <h3 className="text-sm font-black text-gray-800 dark:text-white">
+                                                Class {classes.find(c => c.id == selectedClass)?.name}
+                                            </h3>
+                                            <span className="text-[10px] font-black bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400 px-3 py-1.5 rounded-full">{classStudents.length}</span>
+                                        </div>
+
+                                        <div className="grid grid-cols-2 gap-3">
+                                            {studentLoading ? (
+                                                <div className="col-span-2 py-10 flex justify-center"><Loader2 className="animate-spin text-indigo-500" size={32}/></div>
+                                            ) : classStudents.length === 0 ? (
+                                                <div className="col-span-2 text-center py-10 border-2 border-dashed border-gray-200 dark:border-neutral-800 rounded-[2rem]">
+                                                    <Users size={32} className="mx-auto text-gray-300 mb-2"/>
+                                                    <p className="text-xs text-gray-400 font-bold">No students in this class yet.</p>
+                                                </div>
+                                            ) : (
+                                                classStudents.map(s => (
+                                                    <motion.div key={s.id} whileTap={{scale:0.96}} onClick={() => openStudentDetail(s.id)} className="bg-white dark:bg-[#151515] p-5 rounded-[2rem] shadow-sm border border-gray-100 dark:border-neutral-800 flex flex-col items-center text-center cursor-pointer hover:border-indigo-500/30 transition-colors">
+                                                        <img src={`${process.env.NEXT_PUBLIC_IMAGE_BASE_URL}${s.profile_pic || 'GMPSimages/default_student.png'}`} className="w-16 h-16 rounded-full object-cover mb-3 bg-gray-50 border-4 border-gray-50 dark:border-gray-800" loading="lazy" />
+                                                        <h4 className="text-xs font-black line-clamp-1 text-gray-900 dark:text-white leading-tight w-full px-1">{s.name}</h4>
+                                                        <p className="text-[10px] font-bold text-gray-400 mt-1 uppercase tracking-wider">Roll: {s.roll_no || '-'}</p>
+                                                    </motion.div>
+                                                ))
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         )}
 
@@ -558,6 +670,9 @@ export default function AdminProfile() {
                                 ))}
                             </div>
                         )}
+
+                        {activeTab === 'staff_mgmt' && <StaffManagementModule />}
+                        {activeTab === 'salary_setup' && <SalarySetupModule />}
 
                         {activeTab === 'admins' && isSuperAdmin && (
                             <div className="space-y-3 pb-10">

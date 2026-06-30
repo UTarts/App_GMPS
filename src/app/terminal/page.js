@@ -1,7 +1,7 @@
 "use client";
 import React, { useEffect, useState, useRef } from 'react';
 import * as faceapi from 'face-api.js';
-import { Lock, Shield, ArrowLeft, Camera, Check, LogOut, ScanFace, ScanLine, Search, User, X, AlertTriangle, ChevronDown, Maximize, Keyboard } from 'lucide-react';
+import { Lock, Shield, ArrowLeft, Check, LogOut, ScanFace, ScanLine, User, X, AlertTriangle, ChevronDown, Maximize, Keyboard } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const SESSION_DURATION = 2 * 60 * 60 * 1000; 
@@ -26,6 +26,9 @@ export default function TerminalPage() {
     const streamRef = useRef(null);
     const scanTimeoutRef = useRef(null); 
     const isScanningRef = useRef(false); 
+    
+    // THE GHOST-COOLDOWN ARRAY: Prevents API spam for the same face
+    const recentScansRef = useRef({}); 
 
     // --- ANTI-BACK BUTTON & HISTORY TRAP ---
     useEffect(() => {
@@ -150,28 +153,27 @@ export default function TerminalPage() {
         }
     };
 
-    // --- THE SMART LOOP SCANNER ---
+    // --- THE CONTINUOUS QUEUE SCANNER ---
     const beginLiveScan = async (type) => {
         if (!modelsLoaded) return setAlertModal({ title: "Loading", msg: "AI Models are still initializing.", type: "warning" });
         setScanType(type);
         setView('scan');
         await startCamera();
         
+        // Use the universal 'uid' field to support Hybrid Routing (Teachers + Staff)
         const labeledDescriptors = teachers
             .filter(t => t.face_descriptor)
-            .map(t => new faceapi.LabeledFaceDescriptors(t.id.toString(), [new Float32Array(JSON.parse(t.face_descriptor))]));
+            .map(t => new faceapi.LabeledFaceDescriptors(t.uid, [new Float32Array(JSON.parse(t.face_descriptor))]));
 
         if (labeledDescriptors.length === 0) {
             setStatusMsg("No faces registered yet.");
             return;
         }
 
-        // STRICTER MATCHING: Lowered threshold from 0.45 to 0.40
         const faceMatcher = new faceapi.FaceMatcher(labeledDescriptors, 0.40);
         setStatusMsg("Analyzing biometrics...");
         isScanningRef.current = true;
 
-        // TRIPLE-CHECK VARIABLES
         let consecutiveMatches = 0;
         let lastMatchLabel = null;
 
@@ -179,7 +181,7 @@ export default function TerminalPage() {
             if (!isScanningRef.current || !videoRef.current || videoRef.current.readyState !== 4) return;
             
             try {
-                // UPGRADED VISION: inputSize changed from 160 to 320
+                // Maintained 320 input size for reliable detection
                 const detection = await faceapi.detectSingleFace(
                     videoRef.current, 
                     new faceapi.TinyFaceDetectorOptions({ inputSize: 320 })
@@ -189,7 +191,17 @@ export default function TerminalPage() {
                     const match = faceMatcher.findBestMatch(detection.descriptor);
                     
                     if (match.label !== 'unknown') {
-                        // TRIPLE-CHECK LOGIC
+                        
+                        // 1. Ghost-Cooldown Check (Prevent API spam for 10 seconds per person)
+                        const now = Date.now();
+                        if (recentScansRef.current[match.label] && (now - recentScansRef.current[match.label] < 10000)) {
+                            setStatusMsg("Punch logged. Next person please.");
+                            // Loop continues for the next person instantly
+                            scanTimeoutRef.current = setTimeout(scanFrame, 250);
+                            return;
+                        }
+
+                        // 2. Triple-Check Logic
                         if (lastMatchLabel === match.label) {
                             consecutiveMatches++;
                         } else {
@@ -198,11 +210,11 @@ export default function TerminalPage() {
                         }
 
                         if (consecutiveMatches >= 3) {
-                            isScanningRef.current = false; 
-                            executePunch(match.label, type);
-                            return; 
+                            consecutiveMatches = 0; // Reset
+                            recentScansRef.current[match.label] = Date.now(); // Lock this face for 10s
+                            executePunch(match.label, type); // Fire the API
+                            // DO NOT RETURN. Let the timeout below fire to keep scanning the next person!
                         } else {
-                            // Visual feedback for the teacher to hold still
                             setStatusMsg(`Hold Still... ${consecutiveMatches}/3`);
                         }
                     } else {
@@ -219,6 +231,7 @@ export default function TerminalPage() {
                 console.error("Scan error", err);
             }
 
+            // Continuous 4-FPS Loop Engine
             if (isScanningRef.current) {
                 scanTimeoutRef.current = setTimeout(scanFrame, 250);
             }
@@ -227,18 +240,18 @@ export default function TerminalPage() {
         scanTimeoutRef.current = setTimeout(scanFrame, 1000);
     };
 
-    const executePunch = async (teacherId, type) => {
+    const executePunch = async (uid, type) => {
         setStatusMsg("Verifying Identity...");
         try {
             const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/terminal.php`, {
-                method: 'POST', body: JSON.stringify({ action: 'punch', teacher_id: teacherId, type: type })
+                // Sends the Hybrid 'uid' (e.g. teacher_5 or staff_12)
+                method: 'POST', body: JSON.stringify({ action: 'punch', uid: uid, type: type })
             });
             const json = await res.json();
             
+            // Pop the overlay UI, but KEEP CAMERA RUNNING!
             setScanResult(json);
-            setView('result');
-            fetchInitialData(); 
-            stopCamera();
+            fetchInitialData(); // Update counters silently
 
             // --- HYBRID SPEECH BRIDGE ---
             let speechText = '';
@@ -249,17 +262,10 @@ export default function TerminalPage() {
                 speechText = `Punch Denied. ${json.message || ''}`;
             }
 
-            // 500ms breather for the 2GB RAM tablet
             setTimeout(() => {
-                // 1. Primary Fallback (Google TTS Audio stream)
-                const url = "https://translate.google.com/translate_tts?ie=UTF-8&q=" + 
-                            encodeURIComponent(speechText) + 
-                            "&tl=en&client=tw-ob";
+                const url = "https://translate.google.com/translate_tts?ie=UTF-8&q=" + encodeURIComponent(speechText) + "&tl=en&client=tw-ob";
                 const audio = new Audio(url);
-                
                 audio.play().catch(e => {
-                    console.log("Audio stream blocked or offline, trying offline synthesis...");
-                    // 2. Offline Backup (Standard Webview Speech API)
                     if ('speechSynthesis' in window) {
                         const utterance = new SpeechSynthesisUtterance(speechText);
                         utterance.rate = 1.0; 
@@ -267,23 +273,22 @@ export default function TerminalPage() {
                         window.speechSynthesis.speak(utterance);
                     }
                 });
-            }, 500);
-            // --- END HYBRID SPEECH BRIDGE ---
+            }, 200);
 
+            // Hide the UI Popup after 3.5 seconds
             setTimeout(() => {
                 setScanResult(null);
-                setView('selection');
-            }, 5000);
+                setStatusMsg("Ready for next scan...");
+            }, 3500);
 
         } catch (e) { 
-            setAlertModal({ title: "Network Error", msg: "Failed to connect to server.", type: "error" });
-            setView('selection');
-            stopCamera();
+            console.error(e);
+            setStatusMsg("Network Error. Try again.");
         }
     };
 
     const executeFaceRegistration = async () => {
-        if(!selectedTeacher) return setAlertModal({title:"Missing Info", msg:"Select a teacher first.", type:"warning"});
+        if(!selectedTeacher) return setAlertModal({title:"Missing Info", msg:"Select a staff member first.", type:"warning"});
         setStatusMsg("Capturing mapping data...");
         
         const detection = await faceapi.detectSingleFace(
@@ -296,7 +301,8 @@ export default function TerminalPage() {
         const descStr = JSON.stringify(Array.from(detection.descriptor));
         try {
             const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/terminal.php`, {
-                method: 'POST', body: JSON.stringify({ action: 'register_face', teacher_id: selectedTeacher, descriptor: descStr })
+                // Sends the hybrid UID
+                method: 'POST', body: JSON.stringify({ action: 'register_face', uid: selectedTeacher, descriptor: descStr })
             });
             const json = await res.json();
             if (json.status === 'success') {
@@ -392,12 +398,13 @@ export default function TerminalPage() {
     const CustomDropdown = () => {
         const [isOpen, setIsOpen] = useState(false);
         const [search, setSearch] = useState('');
-        const selectedObj = teachers.find(t => t.id.toString() === selectedTeacher);
+        // Uses the universal uid
+        const selectedObj = teachers.find(t => t.uid === selectedTeacher);
 
         return (
             <div className="relative mb-6">
                 <div onClick={() => setIsOpen(!isOpen)} className="w-full bg-[#1A2235] border border-[#2D3A54] rounded-xl py-4 px-4 text-sm font-bold text-white flex justify-between items-center cursor-pointer">
-                    <span>{selectedObj ? selectedObj.name : 'Select Staff Member...'}</span>
+                    <span>{selectedObj ? `${selectedObj.name} (${selectedObj.user_type})` : 'Select Staff Member...'}</span>
                     <ChevronDown size={18} className="text-gray-400" />
                 </div>
                 <AnimatePresence>
@@ -408,9 +415,12 @@ export default function TerminalPage() {
                             </div>
                             <div className="max-h-48 overflow-y-auto custom-scrollbar">
                                 {teachers.filter(t => t.name.toLowerCase().includes(search.toLowerCase())).map(t => (
-                                    <div key={t.id} onClick={() => { setSelectedTeacher(t.id.toString()); setIsOpen(false); setSearch(''); }} className={`p-4 text-sm cursor-pointer hover:bg-blue-600/20 border-b border-[#1E293B] last:border-0 flex justify-between ${selectedTeacher === t.id.toString() ? 'bg-blue-600/20 text-blue-400 font-bold' : 'text-gray-300'}`}>
-                                        <span>{t.name}</span>
-                                        {t.face_descriptor && <span className="text-[10px] bg-green-500/20 text-green-400 px-2 py-1 rounded">Registered</span>}
+                                    <div key={t.uid} onClick={() => { setSelectedTeacher(t.uid); setIsOpen(false); setSearch(''); }} className={`p-4 text-sm cursor-pointer hover:bg-blue-600/20 border-b border-[#1E293B] last:border-0 flex justify-between ${selectedTeacher === t.uid ? 'bg-blue-600/20 text-blue-400 font-bold' : 'text-gray-300'}`}>
+                                        <div className="flex flex-col">
+                                            <span>{t.name}</span>
+                                            <span className="text-[9px] uppercase tracking-widest text-gray-500">{t.user_type}</span>
+                                        </div>
+                                        {t.face_descriptor && <span className="text-[10px] bg-green-500/20 text-green-400 px-2 py-1 rounded h-max">Registered</span>}
                                     </div>
                                 ))}
                             </div>
@@ -497,7 +507,7 @@ export default function TerminalPage() {
                         <button onClick={() => setView('selection')} className="w-full bg-gradient-to-r from-[#075369] to-[#0A2E44] border border-[#0B7D9E] rounded-2xl p-6 flex flex-col items-start mb-4 shadow-[0_0_30px_rgba(11,125,158,0.2)] active:scale-[0.98] transition-transform relative overflow-hidden">
                             <ScanLine size={32} className="text-[#00F0FF] mb-3 opacity-80" />
                             <h2 className="text-lg font-bold text-white mb-1">Launch Live Terminal</h2>
-                            <p className="text-xs text-[#00F0FF] opacity-70 text-left">Start facial recognition mode.</p>
+                            <p className="text-xs text-[#00F0FF] opacity-70 text-left">Start continuous facial recognition mode.</p>
                             <span className="mt-6 text-[10px] font-bold text-[#00F0FF] uppercase tracking-widest flex items-center gap-1">Initiate System <ArrowLeft size={12} className="rotate-180"/></span>
                         </button>
 
@@ -525,10 +535,6 @@ export default function TerminalPage() {
                                 <div className="w-1.5 h-1.5 bg-blue-400 rounded-full animate-pulse"></div> Face Detected
                             </div>
                             <div className="absolute inset-6 border-2 border-blue-500/30 rounded-2xl"></div>
-                            <div className="absolute top-4 left-4 w-6 h-6 border-t-4 border-l-4 border-blue-500 rounded-tl-xl"></div>
-                            <div className="absolute top-4 right-4 w-6 h-6 border-t-4 border-r-4 border-blue-500 rounded-tr-xl"></div>
-                            <div className="absolute bottom-4 left-4 w-6 h-6 border-b-4 border-l-4 border-blue-500 rounded-bl-xl"></div>
-                            <div className="absolute bottom-4 right-4 w-6 h-6 border-b-4 border-r-4 border-blue-500 rounded-br-xl"></div>
                         </div>
 
                         <div className="bg-[#0F192E] border border-[#1E293B] rounded-3xl p-5 flex-1 flex flex-col justify-between">
@@ -564,7 +570,6 @@ export default function TerminalPage() {
                             <span className="text-2xl font-bold tracking-tighter flex items-center gap-3 text-red-400"><ArrowLeft size={24} className="opacity-80" strokeWidth={3}/> PUNCH OUT</span>
                         </button>
 
-                        {/* MANUAL PIN OVERRIDE BUTTON & BRANDING */}
                         <div className="mt-auto w-full pt-8 border-t border-[#1E293B]">
                             <button onClick={() => setSecureAction({
                                 title: "Manual Override", 
@@ -573,7 +578,6 @@ export default function TerminalPage() {
                             })} className="w-full flex items-center justify-center gap-2 text-gray-400 text-sm hover:text-white transition-colors py-3 bg-[#1A2235] rounded-xl border border-[#2D3A54] mb-6">
                                 <Keyboard size={18} /> Face recognition not working?
                             </button>
-                            
                             <UTArtsBadge />
                         </div>
                     </motion.div>
@@ -593,12 +597,12 @@ export default function TerminalPage() {
 
                             <div className="grid grid-cols-2 gap-3 mt-4">
                                 <button onClick={() => {
-                                    if(!selectedTeacher) return setAlertModal({title:"Missing Info", msg:"Select a teacher first.", type:"warning"});
+                                    if(!selectedTeacher) return setAlertModal({title:"Missing Info", msg:"Select a staff member first.", type:"warning"});
                                     executePunch(selectedTeacher, 'in');
                                 }} className="bg-green-600 text-white font-bold py-4 rounded-xl active:scale-95 transition-transform">Punch IN</button>
                                 
                                 <button onClick={() => {
-                                    if(!selectedTeacher) return setAlertModal({title:"Missing Info", msg:"Select a teacher first.", type:"warning"});
+                                    if(!selectedTeacher) return setAlertModal({title:"Missing Info", msg:"Select a staff member first.", type:"warning"});
                                     executePunch(selectedTeacher, 'out');
                                 }} className="bg-red-600 text-white font-bold py-4 rounded-xl active:scale-95 transition-transform">Punch OUT</button>
                             </div>
@@ -606,76 +610,55 @@ export default function TerminalPage() {
                     </motion.div>
                 )}
 
-                {/* VIEW 5: LIVE SCAN */}
+                {/* VIEW 5: LIVE SCAN (Now with Non-Blocking Floating Results) */}
                 {view === 'scan' && (
                     <motion.div key="scan" initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} className="flex-1 flex flex-col p-4 relative z-10 h-full max-w-md mx-auto w-full">
                         <div className="flex justify-between items-center mb-4 px-2 mt-4">
                             <div className="flex items-center gap-2">
                                 <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
-                                <span className="text-[10px] font-bold uppercase tracking-widest text-green-400">Live Feed</span>
+                                <span className="text-[10px] font-bold uppercase tracking-widest text-green-400">Live Continuous Feed</span>
                             </div>
                             <button onClick={() => setSecureAction({title:"Stop Camera", desc:"Enter PIN to abort scan and exit.", onConfirm: () => {stopCamera(); setView('selection');}})} className="p-2 bg-red-500/10 text-red-500 rounded-full border border-red-500/30"><X size={16}/></button>
                         </div>
 
-                        {/* We use the same aspect-square ratio and targeting brackets as the enrollment screen */}
                         <div className="relative w-full max-h-[50vh] aspect-square mx-auto bg-black rounded-[3rem] overflow-hidden border border-[#1E293B] mt-4 shadow-2xl">
                             <video ref={videoRef} autoPlay muted playsInline className="w-full h-full object-cover transform -scale-x-100" />
                             
                             {/* HUD Targeting Brackets */}
                             <div className="absolute inset-8 border-2 border-blue-500/20 rounded-3xl pointer-events-none"></div>
-                            <div className="absolute top-8 left-8 w-8 h-8 border-t-4 border-l-4 border-blue-500 rounded-tl-2xl pointer-events-none"></div>
-                            <div className="absolute top-8 right-8 w-8 h-8 border-t-4 border-r-4 border-blue-500 rounded-tr-2xl pointer-events-none"></div>
-                            <div className="absolute bottom-8 left-8 w-8 h-8 border-b-4 border-l-4 border-blue-500 rounded-bl-2xl pointer-events-none"></div>
-                            <div className="absolute bottom-8 right-8 w-8 h-8 border-b-4 border-r-4 border-blue-500 rounded-br-2xl pointer-events-none"></div>
-                            
-                            {/* Original Sweeping Scan Line */}
                             <div className={`absolute top-0 left-0 w-full h-full border-t-2 animate-[scan_2s_ease-in-out_infinite] z-20 pointer-events-none ${scanType === 'in' ? 'border-green-500 bg-gradient-to-b from-green-500/10 to-transparent' : 'border-red-500 bg-gradient-to-b from-red-500/10 to-transparent'}`}></div>
                             
                             <div className="absolute top-6 left-6 text-[8px] text-blue-500/50 font-mono tracking-widest z-10 pointer-events-none">SYS.ON <br/> FRM.RATE: OPTIMIZED <br/> LCK.ST: SECURE</div>
+
+                            {/* NON-BLOCKING RESULT OVERLAY */}
+                            <AnimatePresence>
+                                {scanResult && (
+                                    <motion.div initial={{ opacity: 0, scale: 0.9, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9, y: 20 }} className="absolute bottom-6 left-4 right-4 z-50">
+                                        <div className={`bg-[#0F192E]/95 backdrop-blur-md border rounded-2xl p-4 flex items-center gap-4 shadow-2xl ${scanResult.status === 'success' ? 'border-green-500/50' : 'border-red-500/50'}`}>
+                                            <div className={`w-12 h-12 rounded-full flex items-center justify-center shrink-0 ${scanResult.status === 'success' ? 'bg-green-500' : 'bg-red-500'}`}>
+                                                {scanResult.status === 'success' ? <Check size={24} className="text-white"/> : <X size={24} className="text-white"/>}
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                <p className={`text-[9px] font-bold uppercase tracking-widest mb-0.5 ${scanResult.status === 'success' ? 'text-green-400' : 'text-red-400'}`}>
+                                                    {scanResult.status === 'success' ? 'Access Granted' : 'Denied'}
+                                                </p>
+                                                <h2 className="text-lg font-black text-white truncate leading-tight">
+                                                    {scanResult.status === 'success' ? scanResult.name : 'Already Punched'}
+                                                </h2>
+                                                <p className="text-[10px] text-gray-400 mt-1">
+                                                    {scanResult.status === 'success' ? `Logged at ${scanResult.time}` : scanResult.message}
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </motion.div>
+                                )}
+                            </AnimatePresence>
                         </div>
                         
-                        {/* Status Message moved below the camera to keep the UI clean */}
                         <div className="mt-8 mx-auto bg-[#0F192E]/90 backdrop-blur-md border border-blue-500/30 px-8 py-4 rounded-full z-20 flex items-center gap-3">
                             <ScanFace size={20} className="text-blue-400 animate-pulse" />
                             <span className="text-xs font-bold text-blue-400 uppercase tracking-widest whitespace-nowrap">{statusMsg}</span>
                         </div>
-                    </motion.div>
-                )}
-
-                {/* VIEW 6: AUTO-HANDLING RESULT MODAL */}
-                {view === 'result' && scanResult && (
-                    <motion.div key="result" initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} className="absolute inset-0 z-50 flex flex-col items-center justify-center p-6 bg-black/90 backdrop-blur-md">
-                        <motion.div initial={{scale:0.9, y:20}} animate={{scale:1, y:0}} className={`bg-[#0F192E] border w-full max-w-sm rounded-[2rem] p-8 text-center relative overflow-hidden ${scanResult.status === 'success' ? 'border-green-500/30 shadow-[0_0_50px_rgba(34,197,94,0.15)]' : 'border-red-500/30 shadow-[0_0_50px_rgba(239,68,68,0.15)]'}`}>
-                            
-                            <div className="absolute top-4 left-4 bg-blue-600 text-[8px] font-bold uppercase px-2 py-1 rounded flex items-center gap-1"><Shield size={10}/> TERMINAL</div>
-
-                            <div className={`w-24 h-24 rounded-full flex items-center justify-center mx-auto mt-8 mb-6 ${scanResult.status === 'success' ? 'bg-green-500 shadow-[0_0_30px_rgba(34,197,94,0.4)]' : 'bg-red-500 shadow-[0_0_30px_rgba(239,68,68,0.4)]'}`}>
-                                {scanResult.status === 'success' ? <Check size={48} className="text-white" strokeWidth={3} /> : <X size={48} className="text-white" strokeWidth={3} />}
-                            </div>
-                            
-                            <p className={`text-[10px] font-bold uppercase tracking-[0.2em] mb-1 ${scanResult.status === 'success' ? 'text-green-400' : 'text-red-400'}`}>
-                                {scanResult.status === 'success' ? 'Scan Verified' : 'Access Denied'}
-                            </p>
-                            
-                            <h2 className="text-2xl font-black text-white mb-1">
-                                {scanResult.status === 'success' ? scanResult.name : 'Already Punched'}
-                            </h2>
-                            
-                            <p className="text-[10px] text-gray-500 uppercase tracking-widest mb-8">
-                                {scanResult.status === 'success' ? `PUNCH ${scanResult.type === 'in' ? 'IN' : 'OUT'} LOGGED` : scanResult.message}
-                            </p>
-
-                            <div className="flex bg-[#090E17] rounded-xl p-4 mb-6 border border-[#1E293B]">
-                                <div className="flex-1 border-r border-[#1E293B]">
-                                    <p className="text-[8px] text-gray-500 uppercase tracking-widest mb-1">Action</p>
-                                    <p className="text-sm font-bold text-white">{scanResult.status === 'success' ? `PUNCH ${scanResult.type.toUpperCase()}` : 'REJECTED'}</p>
-                                </div>
-                                <div className="flex-1">
-                                    <p className="text-[8px] text-gray-500 uppercase tracking-widest mb-1">Time</p>
-                                    <p className={`text-sm font-bold ${scanResult.status === 'success' ? 'text-green-400' : 'text-red-400'}`}>{scanResult.time || 'N/A'}</p>
-                                </div>
-                            </div>
-                        </motion.div>
                     </motion.div>
                 )}
             </AnimatePresence>

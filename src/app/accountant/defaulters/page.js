@@ -1,141 +1,128 @@
-"use client";
+'use client';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '../../../context/AuthContext';
-import { ArrowLeft, AlertCircle, Phone, ChevronRight, Loader2 } from 'lucide-react';
+import { ArrowLeft, Loader2, ShieldAlert, Phone, Search, Link as LinkIcon, Users } from 'lucide-react';
 import Link from 'next/link';
 
-const safeFetchJson = async (url, options = {}) => {
-  try {
-    const res = await fetch(url, options);
-    let text = await res.text();
-    try {
-      const f = text.indexOf('{'), l = text.lastIndexOf('}');
-      if (f !== -1 && l !== -1) text = text.substring(f, l + 1);
-      return JSON.parse(text);
-    } catch { return { success: false, message: 'Server error.' }; }
-  } catch { return { success: false, message: 'Network error.' }; }
-};
+const getToken = () => { try { return JSON.parse(localStorage.getItem('gmps_user') || '{}')?.token || ''; } catch { return ''; } };
+const fmt = (n) => '₹' + Number(n || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 });
 
-const fmt = (n) => '₹' + Number(n || 0).toLocaleString('en-IN');
-const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-
-export default function Defaulters() {
+export default function DefaultersPage() {
   const { user } = useAuth();
   const router = useRouter();
 
-  const now = new Date();
-  const [month, setMonth] = useState(now.getMonth() + 1);
-  const [year, setYear] = useState(now.getFullYear());
-  const [defaulters, setDefaulters] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [filterClass, setFilterClass] = useState('All');
+  const [students, setStudents] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
+  const [targetPct, setTargetPct] = useState(25); // 25%, 50%, 75%, 100%
 
   useEffect(() => {
-    if (!user) return;
-    if (user.role !== 'admin' || user.level != 3) { router.replace('/'); return; }
-    loadDefaulters(now.getMonth() + 1, now.getFullYear());
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    if (!user || user.role !== 'admin') { router.replace('/'); return; }
+    fetchData();
   }, [user]);
 
-  const loadDefaulters = async (m, y) => {
-    setLoading(true); setError('');
-    const json = await safeFetchJson(
-      `${process.env.NEXT_PUBLIC_API_URL}/fin_api.php?action=get_defaulters&month=${m}&year=${y}`
-    );
+  const fetchData = async () => {
+    try {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/fin_api.php?action=get_recovery_data`, {
+        headers: { 'Authorization': `Bearer ${getToken()}` }
+      });
+      const json = await res.json();
+      if (json.success) setStudents(json.students);
+    } catch (e) { console.error(e); }
     setLoading(false);
-    if (json.success) setDefaulters(json.defaulters || []);
-    else setError(json.message || 'Failed to load defaulters');
   };
 
-  const handleNav = (m, y) => { setMonth(m); setYear(y); setFilterClass('All'); loadDefaulters(m, y); };
-  const prevMonth = () => { const d = new Date(year, month - 2, 1); handleNav(d.getMonth() + 1, d.getFullYear()); };
-  const nextMonth = () => { const d = new Date(year, month, 1); handleNav(d.getMonth() + 1, d.getFullYear()); };
+  // The Magic Defaulter Logic (Family-Aware)
+  const defaulters = students.map(s => {
+    const due = Number(s.family_due);
+    const paid = Number(s.family_paid) + Number(s.family_discount); // Discounts count as paid for recovery math
+    const targetAmount = due * (targetPct / 100);
+    const shortfall = targetAmount - paid;
+    return { ...s, targetAmount, paid, shortfall, due };
+  }).filter(s => s.shortfall > 0 && s.due > 0 && !s.is_staff) // Exclude staff & zeros
+    .filter(s => s.name.toLowerCase().includes(search.toLowerCase()) || s.class_name.toLowerCase().includes(search.toLowerCase()));
 
-  const classes = ['All', ...new Set(defaulters.map(d => d.class_name))];
-  const filtered = filterClass === 'All' ? defaulters : defaulters.filter(d => d.class_name === filterClass);
-  const totalDue = filtered.reduce((s, d) => s + Number(d.balance || 0), 0);
+  const totalShortfall = defaulters.reduce((acc, s) => acc + s.shortfall, 0);
+
+  if (loading) return <div className="min-h-screen flex justify-center items-center"><Loader2 className="animate-spin text-rose-500 w-10 h-10" /></div>;
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-950 pb-24">
-      <div className="sticky top-0 z-30 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 px-4 py-3 flex items-center gap-3 shadow-sm">
-        <Link href="/accountant" className="w-9 h-9 rounded-xl flex items-center justify-center bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 active:scale-95 transition-transform">
-          <ArrowLeft size={20} />
-        </Link>
-        <div className="flex-1">
-          <p className="text-base font-semibold text-gray-800 dark:text-gray-100">Defaulters</p>
-          <p className="text-xs text-gray-400 dark:text-gray-500">Students with pending dues</p>
+    <div className="min-h-screen bg-gray-50 dark:bg-[#0a0a0a] pb-28">
+      <div className="sticky top-0 z-30 bg-white/80 dark:bg-black/80 backdrop-blur-md border-b border-gray-100 dark:border-neutral-800 px-4 py-4 flex items-center gap-3">
+        <button onClick={() => router.back()} className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-neutral-800 transition-colors"><ArrowLeft className="w-5 h-5" /></button>
+        <div>
+          <h1 className="text-base font-black text-gray-900 dark:text-white">Recovery Target</h1>
+          <p className="text-[10px] text-gray-500 uppercase font-bold tracking-wider">Quarterly Defaulters List</p>
         </div>
-        {loading && <Loader2 size={18} className="animate-spin text-emerald-500" />}
       </div>
 
-      <div className="px-4 pt-4 max-w-lg mx-auto space-y-4">
-        <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 flex items-center gap-2 px-4 py-3">
-          <button onClick={prevMonth} className="w-9 h-9 rounded-xl bg-gray-100 dark:bg-gray-800 flex items-center justify-center text-gray-500 text-lg font-bold active:scale-95 transition-transform">‹</button>
-          <div className="flex-1 text-center">
-            <p className="text-base font-semibold text-gray-800 dark:text-gray-100">{MONTHS[month - 1]} {year}</p>
+      <div className="max-w-4xl mx-auto px-4 pt-6 space-y-4">
+        <div className="bg-rose-50 dark:bg-rose-900/10 border border-rose-200 dark:border-rose-800 rounded-3xl p-5 shadow-sm flex items-center justify-between">
+          <div>
+            <p className="text-sm font-black text-rose-700 dark:text-rose-400 flex items-center gap-2"><ShieldAlert size={16}/> Target Shortfall</p>
+            <p className="text-xs font-bold text-rose-600/80 mt-1">{defaulters.length} Accounts below {targetPct}%</p>
           </div>
-          <button onClick={nextMonth} className="w-9 h-9 rounded-xl bg-gray-100 dark:bg-gray-800 flex items-center justify-center text-gray-500 text-lg font-bold active:scale-95 transition-transform">›</button>
+          <p className="text-2xl font-black text-rose-700 dark:text-rose-500">{fmt(totalShortfall)}</p>
         </div>
 
-        {error && <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-2xl px-4 py-3 text-sm text-red-500">{error}</div>}
+        {/* QUARTER TABS */}
+        <div className="flex bg-white dark:bg-[#151515] p-1.5 rounded-2xl border border-gray-100 dark:border-neutral-800 shadow-sm gap-1 overflow-x-auto">
+          {[25, 50, 75, 100].map(pct => (
+            <button key={pct} onClick={() => setTargetPct(pct)} className={`flex-1 min-w-[80px] py-2.5 rounded-xl text-xs font-black transition-all ${targetPct === pct ? 'bg-rose-500 text-white shadow-md' : 'text-gray-500 hover:bg-gray-100 dark:hover:bg-neutral-900'}`}>
+              Q{pct/25} ({pct}%)
+            </button>
+          ))}
+        </div>
 
-        {defaulters.length > 0 && (
-          <div className="bg-red-50 dark:bg-red-900/10 border border-red-100 dark:border-red-900/30 rounded-2xl p-4">
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-2">
-                <AlertCircle size={16} className="text-red-500" />
-                <span className="text-sm font-semibold text-red-700 dark:text-red-400">{filtered.length} Defaulters</span>
+        <div className="relative">
+          <input type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder="Search name or class..." className="w-full pl-12 pr-4 py-4 rounded-2xl bg-white dark:bg-[#151515] border border-gray-100 dark:border-neutral-800 shadow-sm text-sm font-bold outline-none focus:border-rose-500 transition-colors" />
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
+        </div>
+
+        <div className="space-y-3">
+          {defaulters.length === 0 ? (
+            <div className="text-center py-10"><p className="text-sm font-bold text-gray-400">All targets met for Q{targetPct/25}!</p></div>
+          ) : (
+            defaulters.map(s => (
+              <div key={s.id} className="bg-white dark:bg-[#151515] border border-gray-100 dark:border-neutral-800 rounded-3xl p-4 shadow-sm flex flex-col sm:flex-row justify-between gap-4 group hover:border-rose-300 transition-all">
+                <div className="flex-1">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-black text-gray-900 dark:text-white">{s.name}</p>
+                        {s.dependents.length > 0 && <span className="flex items-center gap-1 text-[9px] font-black uppercase bg-blue-100 text-blue-700 px-2 py-0.5 rounded-md"><Users size={10}/> +{s.dependents.length} Family</span>}
+                      </div>
+                      <p className="text-[10px] text-gray-500 font-bold uppercase mt-0.5">{s.class_name} • S/D/O {s.father_name}</p>
+                    </div>
+                    <Link href={`/accountant/ledger/student?id=${s.id}`} className="w-8 h-8 rounded-full bg-gray-50 dark:bg-neutral-900 flex items-center justify-center text-gray-400 hover:bg-blue-500 hover:text-white transition-colors shrink-0"><LinkIcon size={14}/></Link>
+                  </div>
+                  
+                  <div className="mt-3 flex items-center justify-between text-xs bg-gray-50 dark:bg-neutral-900/50 p-3 rounded-2xl">
+                    <div>
+                      <p className="text-[10px] text-gray-400 font-black uppercase">Target ({targetPct}%)</p>
+                      <p className="font-bold">{fmt(s.targetAmount)}</p>
+                    </div>
+                    <div className="h-6 border-r border-gray-200 dark:border-neutral-700"></div>
+                    <div>
+                      <p className="text-[10px] text-gray-400 font-black uppercase">Paid</p>
+                      <p className="font-bold text-emerald-600">{fmt(s.paid)}</p>
+                    </div>
+                    <div className="h-6 border-r border-gray-200 dark:border-neutral-700"></div>
+                    <div className="text-right">
+                      <p className="text-[10px] text-rose-500 font-black uppercase">To Collect</p>
+                      <p className="font-black text-rose-600">{fmt(s.shortfall)}</p>
+                    </div>
+                  </div>
+                </div>
+                
+                <a href={`tel:${s.contact}`} className="sm:w-12 h-12 flex items-center justify-center rounded-2xl bg-green-50 text-green-600 hover:bg-green-500 hover:text-white transition-colors shrink-0">
+                  <Phone size={18} />
+                </a>
               </div>
-              <span className="text-sm font-bold text-red-600 dark:text-red-400">{fmt(totalDue)} total due</span>
-            </div>
-            <div className="flex gap-1.5 overflow-x-auto pb-0.5">
-              {classes.map(c => (
-                <button key={c} onClick={() => setFilterClass(c)}
-                  className={`px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-colors shrink-0 ${filterClass === c ? 'bg-red-500 text-white' : 'bg-white dark:bg-gray-800 text-red-500 dark:text-red-400 border border-red-200 dark:border-red-800'}`}>
-                  {c}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {loading ? (
-          <div className="flex justify-center py-16"><Loader2 className="animate-spin text-emerald-500" size={32} /></div>
-        ) : filtered.length === 0 && !error ? (
-          <div className="text-center py-16 text-gray-400 dark:text-gray-500">
-            <AlertCircle size={40} className="mx-auto mb-3 opacity-30" />
-            <p className="font-medium">{defaulters.length === 0 ? 'No defaulters this month!' : 'No defaulters in this class'}</p>
-            {defaulters.length === 0 && <p className="text-xs mt-1 text-emerald-500">All students are up to date</p>}
-          </div>
-        ) : (
-          <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 overflow-hidden">
-            {filtered.map((d, i) => (
-              <Link key={i} href={`/accountant/ledger/${d.id}`}
-                className="flex items-center gap-3 px-4 py-3.5 border-b border-gray-50 dark:border-gray-800/60 last:border-0 active:bg-gray-50 dark:active:bg-gray-800/50 transition-colors">
-                <div className="w-10 h-10 rounded-full bg-red-100 dark:bg-red-900/20 flex items-center justify-center text-red-600 dark:text-red-400 font-bold text-sm shrink-0">
-                  {d.name?.[0] || 'S'}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-gray-800 dark:text-gray-100 truncate">{d.name}</p>
-                  <p className="text-xs text-gray-400 truncate">{d.class_name} · {d.login_id}</p>
-                  {d.father_name && <p className="text-xs text-gray-400 truncate">F: {d.father_name}</p>}
-                </div>
-                <div className="flex flex-col items-end gap-1 shrink-0">
-                  <span className="text-sm font-bold text-red-500">{fmt(d.balance)}</span>
-                  {d.contact && (
-                    <a href={`tel:${d.contact}`} onClick={e => e.stopPropagation()}
-                      className="flex items-center gap-0.5 text-[10px] text-emerald-600 dark:text-emerald-400">
-                      <Phone size={9} /> {d.contact}
-                    </a>
-                  )}
-                </div>
-                <ChevronRight size={14} className="text-gray-300 dark:text-gray-600 shrink-0" />
-              </Link>
-            ))}
-          </div>
-        )}
+            ))
+          )}
+        </div>
       </div>
     </div>
   );
