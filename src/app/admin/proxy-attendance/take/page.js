@@ -117,9 +117,20 @@ function ProxyAttendanceContent() {
       setCurrentIndex(prev => prev + 1);
   };
 
+  // --- NEW: Batch Actions ---
+  const markAllPresent = () => {
+    const newBuffer = { ...attendanceBuffer };
+    students.forEach(s => { newBuffer[s.id] = 'present'; });
+    setAttendanceBuffer(newBuffer);
+  };
+
+  const markAllAbsent = () => {
+    const newBuffer = { ...attendanceBuffer };
+    students.forEach(s => { newBuffer[s.id] = 'absent'; });
+    setAttendanceBuffer(newBuffer);
+  };
+
   const renderCalendar = () => {
-    // ... Exact same calendar rendering logic from src/app/attendance/page.js ...
-    // Note: For brevity in this response, paste the exact renderCalendar() function from your teacher app here.
     const daysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
     const firstDay = new Date(calYear, calMonth, 1).getDay(); 
     
@@ -206,8 +217,9 @@ function ProxyAttendanceContent() {
                         </div>
                         <div className="bg-white/20 p-2 rounded-full"><ChevronRight /></div>
                     </button>
-                    <button onClick={() => setView('edit')} className="w-full bg-white border border-gray-200 text-gray-700 rounded-2xl p-4 font-bold shadow-sm active:scale-95 transition-transform">
-                        Manual List View Override
+                    <button onClick={() => startAttendanceSession(selectedDate, 'edit')} className="w-full bg-white border border-gray-200 text-gray-700 rounded-2xl p-4 font-bold shadow-sm active:scale-95 transition-transform text-left">
+                        <h4 className="font-bold text-lg">Manual List View</h4>
+                        <p className="text-gray-400 text-xs">View all and edit</p>
                     </button>
                 </div>
             </motion.div>
@@ -271,22 +283,36 @@ function ProxyAttendanceContent() {
         {/* === VIEW 3: EDIT (List View Override) === */}
         {view === 'edit' && (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+                
+                {/* Header Actions */}
                 <div className="flex justify-between items-center mb-4 bg-white p-3 rounded-xl border border-gray-100 shadow-sm">
                     <h2 className="font-bold text-sm">Editing Proxy: <span className="text-purple-600">{new Date(selectedDate).toLocaleDateString()}</span></h2>
-                    <button onClick={() => submitBatch()} className="bg-purple-600 text-white px-4 py-2 rounded-lg text-xs font-bold shadow-lg flex items-center gap-1"><Save size={14} /> Force Save</button>
+                    <button onClick={() => submitBatch()} className="bg-purple-600 text-white px-4 py-2 rounded-lg text-xs font-bold shadow-lg flex items-center gap-1 active:scale-95 transition-transform"><Save size={14} /> Force Save</button>
                 </div>
+
+                {/* --- NEW: BATCH ACTION BUTTONS --- */}
+                <div className="flex gap-3 mb-4">
+                    <button onClick={markAllPresent} className="flex-1 py-2.5 bg-emerald-50 text-emerald-600 border border-emerald-200 rounded-xl text-xs font-bold flex items-center justify-center gap-2 active:scale-95 transition-transform">
+                        <Check size={16} /> Mark All Present
+                    </button>
+                    <button onClick={markAllAbsent} className="flex-1 py-2.5 bg-red-50 text-red-600 border border-red-200 rounded-xl text-xs font-bold flex items-center justify-center gap-2 active:scale-95 transition-transform">
+                        <X size={16} /> Mark All Absent
+                    </button>
+                </div>
+
+                {/* List View */}
                 <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden divide-y divide-gray-100">
                     {students.map((stu) => {
                         const status = attendanceBuffer[stu.id] || 'pending';
                         return (
                             <div key={stu.id} className="p-3 flex items-center justify-between">
                                 <div className="flex items-center gap-3">
-                                    <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center font-bold text-xs text-gray-500">{stu.roll_no || '#'}</div>
-                                    <p className="text-sm font-bold">{stu.name}</p>
+                                    <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center font-bold text-xs text-gray-500 shrink-0">{stu.roll_no || '#'}</div>
+                                    <p className="text-sm font-bold line-clamp-1">{stu.name}</p>
                                 </div>
-                                <div className="flex bg-gray-100 p-1 rounded-lg">
-                                    <button onClick={() => setAttendanceBuffer(p => ({...p, [stu.id]: 'present'}))} className={`p-1.5 rounded-md transition-colors ${status === 'present' ? 'bg-white shadow text-emerald-600' : 'text-gray-400'}`}><Check size={16} /></button>
-                                    <button onClick={() => setAttendanceBuffer(p => ({...p, [stu.id]: 'absent'}))} className={`p-1.5 rounded-md transition-colors ${status === 'absent' ? 'bg-white shadow text-red-600' : 'text-gray-400'}`}><X size={16} /></button>
+                                <div className="flex bg-gray-100 p-1 rounded-lg shrink-0">
+                                    <button onClick={() => setAttendanceBuffer(p => ({...p, [stu.id]: 'present'}))} className={`p-1.5 rounded-md transition-colors ${status === 'present' ? 'bg-white shadow text-emerald-600' : 'text-gray-400 hover:text-emerald-500'}`}><Check size={16} /></button>
+                                    <button onClick={() => setAttendanceBuffer(p => ({...p, [stu.id]: 'absent'}))} className={`p-1.5 rounded-md transition-colors ${status === 'absent' ? 'bg-white shadow text-red-600' : 'text-gray-400 hover:text-red-500'}`}><X size={16} /></button>
                                 </div>
                             </div>
                         );
@@ -298,6 +324,7 @@ function ProxyAttendanceContent() {
     </div>
   );
 }
+
 export default function ProxyAttendanceView() {
     return (
         <Suspense fallback={<div className="flex h-screen items-center justify-center text-gray-500 font-bold">Loading Proxy Module...</div>}>

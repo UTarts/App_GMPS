@@ -610,7 +610,7 @@ export default function TerminalPage() {
                     </motion.div>
                 )}
 
-                {/* VIEW 5: LIVE SCAN (Now with Non-Blocking Floating Results) */}
+                {/* VIEW 5: LIVE SCAN (Password protection removed on close button) */}
                 {view === 'scan' && (
                     <motion.div key="scan" initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} className="flex-1 flex flex-col p-4 relative z-10 h-full max-w-md mx-auto w-full">
                         <div className="flex justify-between items-center mb-4 px-2 mt-4">
@@ -618,7 +618,8 @@ export default function TerminalPage() {
                                 <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
                                 <span className="text-[10px] font-bold uppercase tracking-widest text-green-400">Live Continuous Feed</span>
                             </div>
-                            <button onClick={() => setSecureAction({title:"Stop Camera", desc:"Enter PIN to abort scan and exit.", onConfirm: () => {stopCamera(); setView('selection');}})} className="p-2 bg-red-500/10 text-red-500 rounded-full border border-red-500/30"><X size={16}/></button>
+                            {/* UPGRADED BUTTON: Directly calls stopCamera and view change handler */}
+                            <button onClick={() => { stopCamera(); setView('selection'); }} className="p-2 bg-red-500/10 text-red-500 rounded-full border border-red-500/30 active:scale-95 transition-transform"><X size={16}/></button>
                         </div>
 
                         <div className="relative w-full max-h-[50vh] aspect-square mx-auto bg-black rounded-[3rem] overflow-hidden border border-[#1E293B] mt-4 shadow-2xl">

@@ -512,7 +512,7 @@ export default function SmartStudentLedger() {
           <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex justify-center items-center p-4">
             <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className="w-full max-w-sm bg-white dark:bg-[#1a1a1a] p-6 rounded-[2rem] shadow-2xl">
               <h3 className="text-lg font-black mb-1">Grant Discount</h3>
-              <p className="text-[10px] font-bold text-amber-500 mb-4 uppercase">Max 10% ({fmt(aggregated.total_due * 0.10)})</p>
+              <p className="text-[10px] font-bold text-amber-500 mb-4 uppercase">Max 10% ({fmt(aggregated.total_due * 0.35)})</p>
               <div className="space-y-4">
                 <select value={targetStudentId} onChange={e => setTargetStudentId(e.target.value)} className="w-full p-3 rounded-2xl bg-gray-50 dark:bg-neutral-900 border-2 outline-none font-bold text-sm">
                   {allStudents.map(s => <option key={s.student.id} value={s.student.id}>{s.student.name} ({s.student.class_name})</option>)}
