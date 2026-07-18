@@ -731,7 +731,7 @@ const getBadgeText = () => {
                {data?.gallery && data.gallery[0] && (
                   <img 
                     src={`${process.env.NEXT_PUBLIC_IMAGE_BASE_URL}${data.gallery[0].image_url}`} 
-                    className="w-full h-full object-cover" 
+                    className="absolute inset-0 w-full h-full object-cover" 
                     loading="lazy"
                     alt="Gallery"
                   />
@@ -739,26 +739,26 @@ const getBadgeText = () => {
             </div>
             
             <div className="col-span-1 flex flex-col gap-2">
-               <div className="h-1/2 relative rounded-2xl overflow-hidden bg-gray-200 dark:bg-gray-800">
+               <div className="flex-1 relative rounded-2xl overflow-hidden bg-gray-200 dark:bg-gray-800">
                   {data?.gallery && data.gallery[1] && (
                      <img 
                        src={`${process.env.NEXT_PUBLIC_IMAGE_BASE_URL}${data.gallery[1].image_url}`} 
-                       className="w-full h-full object-cover" 
+                       className="absolute inset-0 w-full h-full object-cover" 
                        loading="lazy"
                        alt="Gallery"
                      />
                   )}
                </div>
-               <div className="h-1/2 relative rounded-2xl overflow-hidden bg-gray-200 dark:bg-gray-800">
+               <div className="flex-1 relative rounded-2xl overflow-hidden bg-gray-200 dark:bg-gray-800">
                   {data?.gallery && data.gallery[2] && (
                      <img 
                        src={`${process.env.NEXT_PUBLIC_IMAGE_BASE_URL}${data.gallery[2].image_url}`} 
-                       className="w-full h-full object-cover" 
+                       className="absolute inset-0 w-full h-full object-cover" 
                        loading="lazy"
                        alt="Gallery"
                      />
                   )}
-                  <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+                  <div className="absolute inset-0 z-10 bg-black/40 flex items-center justify-center">
                      <span className="text-white text-xs font-bold">+ More</span>
                   </div>
                </div>

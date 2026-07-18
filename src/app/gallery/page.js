@@ -3,19 +3,15 @@ import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronLeft, Image as ImageIcon, PlayCircle, X } from 'lucide-react';
 import Link from 'next/link';
-import Image from 'next/image'; // Import Next.js Image for optimization
 
 export default function GalleryPage() {
   const [data, setData] = useState({ images: [], videos: [] });
   const [loading, setLoading] = useState(true);
   
-  // Tabs & Filters
-  const [activeTab, setActiveTab] = useState('photos'); // 'photos' | 'videos'
-  const [activeCategory, setActiveCategory] = useState('all'); // 'all' | 'academic' | 'sports' ...
-  
+  const [activeTab, setActiveTab] = useState('photos'); 
+  const [activeCategory, setActiveCategory] = useState('all');
   const [lightboxItem, setLightboxItem] = useState(null);
 
-  // Categories Configuration
   const categories = [
     { id: 'all', label: 'All' },
     { id: 'academic', label: 'Academic' },
@@ -24,14 +20,13 @@ export default function GalleryPage() {
     { id: 'infrastructure', label: 'Campus' },
   ];
 
-  // --- READ URL TAB PARAMETER ---
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const tab = params.get('tab');
     if (tab) {
-        setActiveTab(tab); // Switches to 'reels' or 'photos'
+        setActiveTab(tab); 
     }
-}, []);
+  }, []);
 
   useEffect(() => {
     async function fetchData() {
@@ -45,14 +40,11 @@ export default function GalleryPage() {
     fetchData();
   }, []);
 
-  // Filter Logic
   const filteredImages = data.images.filter(item => activeCategory === 'all' || item.category === activeCategory);
   const filteredVideos = data.videos.filter(item => activeCategory === 'all' || item.category === activeCategory);
 
-  // Helper: Extract YouTube ID & Check if Short
   const getYouTubeInfo = (url) => {
     if (!url) return { id: null, isShort: false };
-    // Updated regex to catch /shorts/ as well
     const regExp = /(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|shorts\/|watch\?v=|watch\?.+&v=))([^&?#]+)/;
     const match = url.match(regExp);
     const id = (match && match[1].length === 11) ? match[1] : null;
@@ -80,6 +72,14 @@ export default function GalleryPage() {
             
             <div className="w-full max-w-4xl max-h-[80vh] flex items-center justify-center" onClick={(e) => e.stopPropagation()}>
            
+                {lightboxItem.type === 'img' && (
+                    <img 
+                        src={lightboxItem.src} 
+                        alt={lightboxItem.caption || "Gallery Image"} 
+                        className="max-w-full max-h-[80vh] w-auto h-auto object-contain rounded-xl shadow-2xl"
+                    />
+                )}
+
                 {lightboxItem.type !== 'img' && (() => {
                     const { id, isShort } = getYouTubeInfo(lightboxItem.src);
                     return (
@@ -119,7 +119,7 @@ export default function GalleryPage() {
         </div>
       </div>
 
-      {/* --- MAIN TABS (Photos/Videos) --- */}
+      {/* --- MAIN TABS --- */}
       <div className="px-4 mt-6">
         <div className="bg-gray-200/80 dark:bg-gray-800/80 p-1 rounded-xl flex shadow-inner relative">
             <motion.div 
@@ -164,38 +164,22 @@ export default function GalleryPage() {
       <div className="px-4 mt-4 min-h-[60vh]">
         <AnimatePresence mode='wait'>
             
-            {/* === 1. IMAGES (MASONRY LAYOUT) === */}
+            {/* === 1. IMAGES (GRID LAYOUT) === */}
             {activeTab === 'photos' && (
                 <motion.div 
                     key="photos"
                     initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}
-                    className="columns-2 gap-4 space-y-4"
+                    className="grid grid-cols-2 md:grid-cols-4 grid-flow-dense gap-2 sm:gap-4"
                 >
                     {filteredImages.map((img, i) => (
-                        <div 
+                        <GridImage 
                             key={i} 
-                            className="break-inside-avoid relative group rounded-xl overflow-hidden bg-gray-200 dark:bg-gray-800 shadow-sm border border-gray-100 dark:border-gray-800 cursor-zoom-in"
-                            onClick={() => setLightboxItem({ type: 'img', src: `${process.env.NEXT_PUBLIC_IMAGE_BASE_URL}${img.image_url}`, caption: img.caption })}
-                        >
-                            {/* PERFORMANCE: Use Next.js Image for Grid (Low Quality/Optimized) */}
-                            <Image 
-                                src={`${process.env.NEXT_PUBLIC_IMAGE_BASE_URL}${img.image_url}`} 
-                                alt={img.caption || "Gallery Image"}
-                                width={400} 
-                                height={300}
-                                className="w-full h-auto object-cover transition-transform duration-500 group-hover:scale-110"
-                                loading="lazy"
-                            />
-                            
-                            {/* Overlay Gradient */}
-                            <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-end p-3">
-                                <span className="text-[10px] text-white/80 bg-white/20 px-2 py-0.5 rounded-md w-fit mb-1 backdrop-blur-sm uppercase">{img.category}</span>
-                                <p className="text-white text-xs font-medium line-clamp-2">{img.caption}</p>
-                            </div>
-                        </div>
+                            img={img} 
+                            onClick={() => setLightboxItem({ type: 'img', src: `${process.env.NEXT_PUBLIC_IMAGE_BASE_URL}${img.image_url}`, caption: img.caption })} 
+                        />
                     ))}
                     {filteredImages.length === 0 && (
-                        <div className="col-span-2 py-20 text-center">
+                        <div className="col-span-2 md:col-span-4 py-20 text-center">
                             <p className="text-gray-400 text-sm">No photos found in this category.</p>
                         </div>
                     )}
@@ -209,7 +193,6 @@ export default function GalleryPage() {
                     initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}
                     className="grid grid-cols-1 md:grid-cols-2 gap-4"
                 >
-          
                     {filteredVideos.map((vid, i) => {
                         const { id: ytId, isShort } = getYouTubeInfo(vid.video_url);
                         const thumb = ytId ? `https://img.youtube.com/vi/${ytId}/hqdefault.jpg` : null;
@@ -217,7 +200,6 @@ export default function GalleryPage() {
                         return (
                             <div 
                                 key={i} 
-                                // Dynamically change aspect ratio based on isShort
                                 className={`relative rounded-2xl overflow-hidden shadow-md bg-black group cursor-pointer border border-gray-200 dark:border-gray-800 ${isShort ? 'aspect-[9/16] w-full max-w-[300px] mx-auto' : 'aspect-video'}`}
                                 onClick={() => setLightboxItem({ type: 'vid', src: vid.video_url, caption: vid.caption })}
                             >
@@ -258,30 +240,67 @@ export default function GalleryPage() {
   );
 }
 
+// --- HELPER COMPONENT: Auto-Detects Orientation for Grid Spanning ---
+function GridImage({ img, onClick }) {
+    const [isPortrait, setIsPortrait] = useState(false);
+    const [loaded, setLoaded] = useState(false);
+    const src = `${process.env.NEXT_PUBLIC_IMAGE_BASE_URL}${img.image_url}`;
+
+    const handleLoad = (e) => {
+        const { naturalWidth, naturalHeight } = e.target;
+        setIsPortrait(naturalHeight > naturalWidth);
+        setLoaded(true);
+    };
+
+    return (
+        <div 
+            className={`relative group rounded-xl overflow-hidden bg-gray-200 dark:bg-gray-800 shadow-sm border border-gray-100 dark:border-gray-800 cursor-zoom-in transition-all duration-300 ${
+                loaded ? (isPortrait ? 'col-span-1 aspect-[3/4]' : 'col-span-2 aspect-[3/2]') : 'col-span-2 aspect-[3/2]'
+            }`}
+            onClick={onClick}
+        >
+            {!loaded && (
+                <div className="absolute inset-0 animate-pulse bg-gray-300 dark:bg-gray-700 flex items-center justify-center">
+                    <ImageIcon className="text-gray-400 opacity-50" size={24} />
+                </div>
+            )}
+            
+            <img 
+                src={src} 
+                alt={img.caption || "Gallery Image"}
+                onLoad={handleLoad}
+                loading="lazy"
+                className={`w-full h-full object-cover transition-all duration-700 group-hover:scale-110 ${loaded ? 'opacity-100' : 'opacity-0'}`}
+            />
+            
+            <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-end p-2 sm:p-3">
+                <span className="text-[9px] sm:text-[10px] text-white/80 bg-white/20 px-2 py-0.5 rounded-md w-fit mb-1 backdrop-blur-sm uppercase">{img.category}</span>
+                <p className="text-white text-[10px] sm:text-xs font-medium line-clamp-2">{img.caption}</p>
+            </div>
+        </div>
+    );
+}
+
 // --- SKELETON COMPONENT ---
 function GallerySkeleton() {
     return (
         <div className="min-h-screen bg-[#F2F6FA] dark:bg-[#0a0a0a] p-4 space-y-6">
-            {/* Header Skeleton */}
             <div className="flex items-center gap-3 py-4 border-b border-gray-200 dark:border-gray-800">
-                <div className="w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-800 skeleton" />
-                <div className="h-6 w-32 bg-gray-200 dark:bg-gray-800 rounded skeleton" />
+                <div className="w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-800 animate-pulse" />
+                <div className="h-6 w-32 bg-gray-200 dark:bg-gray-800 rounded animate-pulse" />
             </div>
 
-            {/* Tabs Skeleton */}
-            <div className="h-10 bg-gray-200 dark:bg-gray-800 rounded-xl skeleton w-full" />
+            <div className="h-10 bg-gray-200 dark:bg-gray-800 rounded-xl animate-pulse w-full" />
 
-            {/* Filter Pills Skeleton */}
             <div className="flex gap-2 overflow-hidden">
                 {[1,2,3,4].map(i => (
-                    <div key={i} className="h-8 w-20 rounded-full bg-gray-200 dark:bg-gray-800 skeleton" />
+                    <div key={i} className="h-8 w-20 rounded-full bg-gray-200 dark:bg-gray-800 animate-pulse" />
                 ))}
             </div>
 
-            {/* Grid Skeleton */}
-            <div className="columns-2 gap-4 space-y-4">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-4">
                 {[1,2,3,4,5,6].map(i => (
-                    <div key={i} className={`rounded-xl bg-gray-200 dark:bg-gray-800 skeleton w-full ${i % 2 === 0 ? 'h-48' : 'h-32'}`} />
+                    <div key={i} className={`rounded-xl bg-gray-200 dark:bg-gray-800 animate-pulse w-full ${i % 3 === 0 ? 'col-span-1 aspect-[3/4]' : 'col-span-2 aspect-[3/2]'}`} />
                 ))}
             </div>
         </div>

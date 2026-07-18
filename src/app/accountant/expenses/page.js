@@ -1,212 +1,192 @@
-"use client";
-import { useEffect, useState } from 'react';
+'use client';
+import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '../../../context/AuthContext';
 import { useAppModal } from '../../../context/ModalContext';
-import { ArrowLeft, Plus, Wallet, Trash2, Loader2, AlertTriangle, CheckCircle2 } from 'lucide-react';
-import Link from 'next/link';
+import {
+  ArrowLeft, Loader2, Plus, Receipt, TrendingDown, Calendar, FileText, X, CheckCircle2, Wallet
+} from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 
+// Robust fetcher
+const getToken = () => { try { return JSON.parse(localStorage.getItem('gmps_user') || '{}')?.token || ''; } catch { return ''; } };
 const safeFetchJson = async (url, options = {}) => {
   try {
-    const res = await fetch(url, options);
-    let text = await res.text();
-    try {
-      const f = text.indexOf('{'), l = text.lastIndexOf('}');
-      if (f !== -1 && l !== -1) text = text.substring(f, l + 1);
-      return JSON.parse(text);
-    } catch { return { success: false, message: 'Server error.' }; }
-  } catch { return { success: false, message: 'Network error.' }; }
+    const token = getToken();
+    const headers = { ...(options.headers || {}), ...(token ? { Authorization: `Bearer ${token}` } : {}) };
+    const res = await fetch(url, { ...options, headers });
+    return JSON.parse(await res.text());
+  } catch { return { success: false, message: 'Network/server error.' }; }
 };
 
-const fmt = (n) => '₹' + Number(n || 0).toLocaleString('en-IN');
+const fmt = (n) => '₹' + Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 0 });
+const formatDate = (dateStr) => new Date(dateStr).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
 
-const CATEGORIES = ['Stationery','Maintenance','Salary','Utilities','Events','Transport','Other'];
-
-const emptyForm = { title: '', amount: '', category: 'Other', date: new Date().toISOString().substring(0, 10), remarks: '' };
-
-export default function Expenses() {
+export default function ExpensesPage() {
   const { user } = useAuth();
-  const { showModal } = useAppModal();
   const router = useRouter();
+  const { showModal } = useAppModal();
 
-  const [expenses, setExpenses] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState('');
-  const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState(emptyForm);
-  const [total, setTotal] = useState(0);
+  const [expenses, setExpenses] = useState([]);
+  const [stats, setStats] = useState({ total: 0, this_month: 0, today: 0 });
+  
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [processing, setProcessing] = useState(false);
+  const [form, setForm] = useState({ title: '', amount: '', remarks: '', expense_date: new Date().toISOString().slice(0,10) });
 
-  useEffect(() => {
-    if (!user) return;
-    if (user.role !== 'admin' || user.level != 3) { router.replace('/'); return; }
-    loadExpenses();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user]);
-
-  const loadExpenses = async () => {
+  const loadData = useCallback(async () => {
     setLoading(true);
     const json = await safeFetchJson(`${process.env.NEXT_PUBLIC_API_URL}/fin_api.php?action=get_expenses`);
-    setLoading(false);
     if (json.success) {
-      setExpenses(json.expenses || []);
-      setTotal(json.total || 0);
-    } else setError(json.message || 'Failed to load expenses');
-  };
+        setExpenses(json.expenses || []);
+        setStats(json.stats || { total: 0, this_month: 0, today: 0 });
+    } else {
+        showModal('Error', json.message || 'Failed to load expenses', 'danger');
+    }
+    setLoading(false);
+  }, [showModal]);
 
-  const handleAdd = async () => {
-    if (!form.title.trim()) { setError('Title is required'); return; }
-    if (!form.amount || isNaN(form.amount) || Number(form.amount) <= 0) { setError('Enter a valid amount'); return; }
-    setSaving(true); setError('');
-    const json = await safeFetchJson(`${process.env.NEXT_PUBLIC_API_URL}/fin_api.php?action=add_expense`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...form, amount: Number(form.amount) }),
+  useEffect(() => { if (user) loadData(); }, [user, loadData]);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!form.title || !form.amount || Number(form.amount) <= 0) return showModal('Error', 'Valid Title and Amount are required', 'warning');
+    
+    setProcessing(true);
+    const json = await safeFetchJson(`${process.env.NEXT_PUBLIC_API_URL}/fin_api.php`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'add_expense', ...form })
     });
-    setSaving(false);
-    if (json.success) { setShowForm(false); setForm(emptyForm); loadExpenses(); }
-    else setError(json.message || 'Failed to save expense');
+    setProcessing(false);
+
+    if (json.success) {
+      showModal('Success', 'Expense logged securely!', 'success');
+      setShowAddModal(false);
+      setForm({ title: '', amount: '', remarks: '', expense_date: new Date().toISOString().slice(0,10) });
+      loadData();
+    } else {
+      showModal('Error', json.message || 'Failed to log expense', 'danger');
+    }
   };
 
-  const handleDelete = (exp) => {
-    showModal('Delete Expense', `Delete "${exp.title}" (${fmt(exp.amount)})? This cannot be undone.`, 'danger', async () => {
-      const json = await safeFetchJson(`${process.env.NEXT_PUBLIC_API_URL}/fin_api.php?action=delete_expense`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: exp.id }),
-      });
-      if (json.success) loadExpenses();
-      else setError(json.message || 'Delete failed');
-    });
-  };
-
-  const CAT_COLORS = {
-    Stationery: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
-    Maintenance: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
-    Salary:      'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400',
-    Utilities:   'bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400',
-    Events:      'bg-pink-100 text-pink-700 dark:bg-pink-900/30 dark:text-pink-400',
-    Transport:   'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400',
-    Other:       'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400',
-  };
+  if (loading && expenses.length === 0) return <div className="min-h-screen flex justify-center items-center bg-[#F2F6FA] dark:bg-[#0a0a0a]"><Loader2 className="animate-spin text-rose-500 w-10 h-10" /></div>;
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-950 pb-24">
-      <div className="sticky top-0 z-30 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 px-4 py-3 flex items-center gap-3 shadow-sm">
-        <Link href="/accountant" className="w-9 h-9 rounded-xl flex items-center justify-center bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 active:scale-95 transition-transform">
-          <ArrowLeft size={20} />
-        </Link>
-        <div className="flex-1">
-          <p className="text-base font-semibold text-gray-800 dark:text-gray-100">School Expenses</p>
-          <p className="text-xs text-gray-400 dark:text-gray-500">Log and track school expenditure</p>
+    <div className="min-h-screen pb-28 bg-[#F2F6FA] dark:bg-[#0a0a0a] font-sans text-gray-900 dark:text-white">
+      
+      {/* HEADER */}
+      <div className="sticky top-0 z-30 bg-white/90 dark:bg-[#151515]/90 backdrop-blur-xl border-b border-gray-100 dark:border-neutral-800 px-4 py-4 flex items-center gap-3 shadow-sm">
+        <button onClick={() => router.back()} className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-neutral-800 transition-colors"><ArrowLeft className="w-5 h-5 text-gray-600 dark:text-gray-300" /></button>
+        <div className="flex-1 min-w-0">
+          <h1 className="text-lg font-black truncate leading-none">General Expenses</h1>
+          <p className="text-[10px] uppercase tracking-widest text-rose-500 font-bold mt-1 bg-rose-50 dark:bg-rose-900/30 px-2 py-0.5 rounded-full inline-block">Outflow Tracker</p>
         </div>
-        <button onClick={() => { setShowForm(true); setError(''); }}
-          className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-500 text-white text-sm font-semibold active:scale-95 transition-transform shadow-sm">
-          <Plus size={16} />
-          Add
+      </div>
+
+      <div className="px-4 pt-5 max-w-3xl mx-auto space-y-5">
+        
+        {/* ACTION BUTTON */}
+        <button onClick={() => setShowAddModal(true)} className="w-full py-4 bg-rose-600 text-white rounded-[2rem] font-black text-lg flex items-center justify-center gap-2 shadow-lg shadow-rose-500/30 active:scale-95 transition-transform">
+            <Plus size={24} /> Log New Expense
         </button>
-      </div>
 
-      <div className="px-4 pt-4 max-w-lg mx-auto space-y-4">
-        {/* Total Card */}
-        {!loading && (
-          <div className="bg-gradient-to-br from-rose-500 to-pink-600 rounded-2xl p-4 text-white shadow-md">
-            <p className="text-rose-100 text-xs mb-0.5">Total Expenses (This Session)</p>
-            <p className="text-2xl font-bold">{fmt(total)}</p>
-            <p className="text-rose-200 text-sm mt-1">{expenses.length} entries</p>
+        {/* STATS STRIP */}
+        <div className="grid grid-cols-3 gap-3">
+          <div className="bg-white dark:bg-[#151515] rounded-3xl p-4 border border-gray-100 dark:border-neutral-800 shadow-sm flex flex-col items-center justify-center text-center">
+            <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1 flex items-center gap-1">Today</p>
+            <p className="text-lg font-black text-rose-500">{fmt(stats.today)}</p>
           </div>
-        )}
-
-        {error && (
-          <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-2xl px-4 py-3 flex gap-2 items-start">
-            <AlertTriangle size={16} className="text-red-500 shrink-0 mt-0.5" />
-            <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
+          <div className="bg-white dark:bg-[#151515] rounded-3xl p-4 border border-gray-100 dark:border-neutral-800 shadow-sm flex flex-col items-center justify-center text-center">
+            <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1 flex items-center gap-1">This Month</p>
+            <p className="text-lg font-black text-rose-600 dark:text-rose-400">{fmt(stats.this_month)}</p>
           </div>
-        )}
+          <div className="bg-rose-50 border-rose-200 dark:bg-rose-900/10 dark:border-rose-800/50 rounded-3xl p-4 border flex flex-col items-center justify-center text-center">
+            <p className="text-[9px] font-black text-rose-600 dark:text-rose-400 uppercase tracking-widest mb-1 flex items-center gap-1">Total (Yr)</p>
+            <p className="text-xl font-black text-rose-700 dark:text-rose-300">{fmt(stats.total)}</p>
+          </div>
+        </div>
 
-        {/* Add Form */}
-        {showForm && (
-          <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-emerald-200 dark:border-emerald-800 overflow-hidden">
-            <div className="px-4 py-3 border-b border-gray-50 dark:border-gray-800 flex items-center justify-between">
-              <p className="text-sm font-semibold text-gray-700 dark:text-gray-200">New Expense</p>
-              <button onClick={() => setShowForm(false)} className="text-xs text-gray-400">Cancel</button>
+        {/* HISTORY LIST */}
+        <div className="bg-white dark:bg-[#151515] rounded-[2rem] border border-gray-100 dark:border-neutral-800 shadow-sm overflow-hidden">
+            <div className="px-5 py-4 border-b border-gray-50 dark:border-neutral-800/60 bg-gray-50/50 dark:bg-neutral-900/50 flex items-center gap-2">
+                <TrendingDown size={16} className="text-rose-500" />
+                <h2 className="text-xs font-black uppercase tracking-widest text-gray-500">Expense History Log</h2>
             </div>
+            
             <div className="p-4 space-y-3">
-              <div>
-                <label className="text-xs text-gray-400 mb-1 block">Title *</label>
-                <input type="text" value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
-                  placeholder="e.g. Chalk and Duster" autoFocus
-                  className="w-full bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl px-3 py-2.5 text-sm text-gray-800 dark:text-gray-100 placeholder-gray-400 outline-none focus:border-emerald-400 dark:focus:border-emerald-600 transition-colors" />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs text-gray-400 mb-1 block">Amount (₹) *</label>
-                  <input type="number" value={form.amount} onChange={e => setForm(f => ({ ...f, amount: e.target.value }))}
-                    placeholder="0.00" min="0"
-                    className="w-full bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl px-3 py-2.5 text-sm text-gray-800 dark:text-gray-100 outline-none focus:border-emerald-400 dark:focus:border-emerald-600 transition-colors" />
-                </div>
-                <div>
-                  <label className="text-xs text-gray-400 mb-1 block">Date</label>
-                  <input type="date" value={form.date} onChange={e => setForm(f => ({ ...f, date: e.target.value }))}
-                    className="w-full bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl px-3 py-2.5 text-sm text-gray-800 dark:text-gray-100 outline-none focus:border-emerald-400 dark:focus:border-emerald-600 transition-colors" />
-                </div>
-              </div>
-              <div>
-                <label className="text-xs text-gray-400 mb-1 block">Category</label>
-                <div className="flex flex-wrap gap-1.5">
-                  {CATEGORIES.map(c => (
-                    <button key={c} onClick={() => setForm(f => ({ ...f, category: c }))}
-                      className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-colors ${form.category === c ? 'bg-emerald-500 text-white' : 'bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400'}`}>
-                      {c}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <div>
-                <label className="text-xs text-gray-400 mb-1 block">Remarks</label>
-                <input type="text" value={form.remarks} onChange={e => setForm(f => ({ ...f, remarks: e.target.value }))}
-                  placeholder="Optional notes"
-                  className="w-full bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl px-3 py-2.5 text-sm text-gray-800 dark:text-gray-100 placeholder-gray-400 outline-none focus:border-emerald-400 dark:focus:border-emerald-600 transition-colors" />
-              </div>
-              <button onClick={handleAdd} disabled={saving}
-                className="w-full flex items-center justify-center gap-2 bg-emerald-500 text-white py-3 rounded-xl font-semibold text-sm active:scale-95 transition-transform disabled:opacity-50 shadow-sm">
-                {saving ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle2 size={16} />}
-                {saving ? 'Saving...' : 'Save Expense'}
-              </button>
+                {expenses.length === 0 ? (
+                    <div className="text-center py-10">
+                        <Wallet className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                        <p className="text-sm font-bold text-gray-400">No expenses logged yet.</p>
+                    </div>
+                ) : (
+                    expenses.map(exp => (
+                        <div key={exp.id} className="bg-gray-50 dark:bg-neutral-900 rounded-2xl p-4 flex items-center gap-4 border border-gray-100 dark:border-neutral-800">
+                            <div className="w-12 h-12 rounded-full bg-rose-100 dark:bg-rose-900/30 text-rose-500 flex items-center justify-center shrink-0">
+                                <Receipt size={20} />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                                <p className="font-black text-base truncate text-gray-900 dark:text-white">{exp.title}</p>
+                                <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest mt-0.5">{formatDate(exp.expense_date)} • By {exp.created_by_name || 'Admin'}</p>
+                                {exp.remarks && <p className="text-xs text-gray-600 dark:text-gray-400 font-medium italic mt-1 line-clamp-1">"{exp.remarks}"</p>}
+                            </div>
+                            <div className="shrink-0 text-right">
+                                <p className="font-black text-rose-600 dark:text-rose-400 text-lg">{fmt(exp.amount)}</p>
+                            </div>
+                        </div>
+                    ))
+                )}
             </div>
-          </div>
-        )}
-
-        {/* Expense List */}
-        {loading ? (
-          <div className="flex justify-center py-16"><Loader2 className="animate-spin text-emerald-500" size={32} /></div>
-        ) : expenses.length === 0 ? (
-          <div className="text-center py-16 text-gray-400 dark:text-gray-500">
-            <Wallet size={40} className="mx-auto mb-3 opacity-30" />
-            <p className="font-medium">No expenses logged yet</p>
-            <p className="text-xs mt-1">Tap + Add to record a school expense</p>
-          </div>
-        ) : (
-          <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 overflow-hidden">
-            {expenses.map((exp) => (
-              <div key={exp.id} className="flex items-center gap-3 px-4 py-3.5 border-b border-gray-50 dark:border-gray-800/60 last:border-0">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <p className="text-sm font-semibold text-gray-800 dark:text-gray-100">{exp.title}</p>
-                    <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${CAT_COLORS[exp.category] || CAT_COLORS.Other}`}>{exp.category}</span>
-                  </div>
-                  <p className="text-xs text-gray-400 mt-0.5">{exp.date}{exp.remarks ? ` · ${exp.remarks}` : ''}</p>
-                </div>
-                <p className="text-sm font-bold text-rose-500 shrink-0">{fmt(exp.amount)}</p>
-                <button onClick={() => handleDelete(exp)}
-                  className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:text-red-500 bg-gray-50 dark:bg-gray-800 active:scale-95 transition-all shrink-0">
-                  <Trash2 size={14} />
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
+        </div>
       </div>
+
+      {/* --- ADD EXPENSE MODAL --- */}
+      <AnimatePresence>
+        {showAddModal && (
+          <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex justify-center items-end sm:items-center p-0 sm:p-4">
+            <motion.div initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%', opacity: 0 }} transition={{ type: 'spring', damping: 25, stiffness: 300 }} className="w-full max-w-md bg-white dark:bg-[#1a1a1a] p-6 rounded-t-[2rem] sm:rounded-[2rem] shadow-2xl relative">
+              <button onClick={() => setShowAddModal(false)} className="absolute top-5 right-5 p-2 bg-gray-100 dark:bg-neutral-800 rounded-full hover:scale-95 transition-transform"><X size={16} className="text-gray-500"/></button>
+              
+              <div className="mb-6 flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center"><TrendingDown size={20} /></div>
+                  <div>
+                    <h3 className="text-lg font-black leading-tight">Log Expense</h3>
+                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-0.5">Register money out</p>
+                  </div>
+              </div>
+
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <div>
+                    <label className="text-[10px] font-black uppercase text-gray-400 tracking-wider ml-1 block mb-1.5">Expense Title / Category <span className="text-rose-500">*</span></label>
+                    <input type="text" required placeholder="e.g. Electricity Bill, Chalks..." value={form.title} onChange={e => setForm({...form, title: e.target.value})} className="w-full bg-gray-50 dark:bg-neutral-900 border border-gray-200 dark:border-neutral-800 rounded-xl px-4 py-3.5 text-sm font-bold outline-none focus:border-rose-500 transition-colors" />
+                </div>
+                
+                <div className="grid grid-cols-2 gap-3">
+                    <div>
+                        <label className="text-[10px] font-black uppercase text-gray-400 tracking-wider ml-1 block mb-1.5">Amount (₹) <span className="text-rose-500">*</span></label>
+                        <input type="number" required placeholder="0.00" value={form.amount} onChange={e => setForm({...form, amount: e.target.value})} className="w-full bg-gray-50 dark:bg-neutral-900 border border-gray-200 dark:border-neutral-800 rounded-xl px-4 py-3.5 text-sm font-bold outline-none focus:border-rose-500 transition-colors" />
+                    </div>
+                    <div>
+                        <label className="text-[10px] font-black uppercase text-gray-400 tracking-wider ml-1 block mb-1.5">Date</label>
+                        <input type="date" required value={form.expense_date} onChange={e => setForm({...form, expense_date: e.target.value})} className="w-full bg-gray-50 dark:bg-neutral-900 border border-gray-200 dark:border-neutral-800 rounded-xl px-3 py-3.5 text-sm font-bold outline-none focus:border-rose-500 transition-colors" />
+                    </div>
+                </div>
+
+                <div>
+                    <label className="text-[10px] font-black uppercase text-gray-400 tracking-wider ml-1 block mb-1.5">Remarks (Optional)</label>
+                    <input type="text" placeholder="Add a note or bill number..." value={form.remarks} onChange={e => setForm({...form, remarks: e.target.value})} className="w-full bg-gray-50 dark:bg-neutral-900 border border-gray-200 dark:border-neutral-800 rounded-xl px-4 py-3.5 text-sm font-bold outline-none focus:border-rose-500 transition-colors" />
+                </div>
+
+                <button type="submit" disabled={processing} className="w-full py-4 bg-rose-600 text-white font-black rounded-xl flex items-center justify-center gap-2 active:scale-95 transition-transform shadow-lg mt-2">
+                    {processing ? <Loader2 size={18} className="animate-spin" /> : <CheckCircle2 size={18} />} Save Record
+                </button>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
     </div>
   );
 }

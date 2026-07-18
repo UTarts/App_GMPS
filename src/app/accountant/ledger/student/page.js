@@ -48,7 +48,7 @@ export default function SmartStudentLedger() {
   const [historyModal, setHistoryModal] = useState({ show: false, logs: [] });
   
   const [targetStudentId, setTargetStudentId] = useState('');
-  const [extraForm, setExtraForm] = useState({ fee_head_id: '', amount: '' });
+  const [extraForm, setExtraForm] = useState({ fee_head_id: '', amount: '', manual_title: '', remarks: '' });
   const [discountForm, setDiscountForm] = useState({ amount: '', reason: '' });
   const [receiptData, setReceiptData] = useState(null);
 
@@ -135,14 +135,29 @@ export default function SmartStudentLedger() {
 
   const handleAddExtra = async () => {
     if (!extraForm.fee_head_id || !extraForm.amount) return;
+    if (extraForm.fee_head_id === 'manual' && !extraForm.manual_title) return showModal('Error', 'Please enter a name for the manual item.', 'warning');
+    
     setProcessing(true);
     const json = await safeFetchJson(`${process.env.NEXT_PUBLIC_API_URL}/fin_api.php`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'add_simple_extra_fee', student_id: targetStudentId, fee_head_id: extraForm.fee_head_id, amount: extraForm.amount })
+      body: JSON.stringify({ 
+        action: 'add_simple_extra_fee', 
+        student_id: targetStudentId, 
+        fee_head_id: extraForm.fee_head_id, 
+        amount: extraForm.amount,
+        manual_title: extraForm.manual_title,
+        remarks: extraForm.remarks
+      })
     });
     setProcessing(false);
-    if (json.success) { setModals({ ...modals, extra: false }); loadAll(); }
-    else showModal('Error', json.message || 'Failed to add extra fee', 'danger');
+    
+    if (json.success) { 
+      setModals({ ...modals, extra: false }); 
+      setExtraForm({ fee_head_id: '', amount: '', manual_title: '', remarks: '' });
+      loadAll(); 
+    } else {
+      showModal('Error', json.message || 'Failed to add extra fee', 'danger');
+    }
   };
 
   const handleAddDiscount = async () => {
@@ -372,7 +387,7 @@ export default function SmartStudentLedger() {
                     {!isStaff && (
                       <button onClick={() => setModals({...modals, discount: true})} className="flex items-center justify-center py-4 rounded-2xl bg-white dark:bg-[#151515] border border-gray-100 dark:border-neutral-800 hover:border-amber-400 transition-colors gap-2">
                         <div className="w-8 h-8 rounded-full bg-amber-50 dark:bg-amber-900/30 text-amber-500 flex items-center justify-center"><Tag size={16} /></div>
-                        <div className="text-left"><p className="text-xs font-black">Grant Discount</p><p className="text-[9px] text-gray-400 font-bold uppercase">Max 10% allowed</p></div>
+                        <div className="text-left"><p className="text-xs font-black">Grant Discount</p><p className="text-[9px] text-gray-400 font-bold uppercase">Custom Amount</p></div>
                       </button>
                     )}
                   </div>
@@ -492,13 +507,26 @@ export default function SmartStudentLedger() {
                   {allStudents.map(s => <option key={s.student.id} value={s.student.id}>{s.student.name} ({s.student.class_name})</option>)}
                 </select>
                 <select value={extraForm.fee_head_id} onChange={e => {
-                  const head = extrasList.find(h => String(h.id) === e.target.value);
-                  setExtraForm({ fee_head_id: e.target.value, amount: head?.preset_amount || '' });
+                  const val = e.target.value;
+                  if (val === 'manual') {
+                    setExtraForm({ ...extraForm, fee_head_id: 'manual', amount: '', manual_title: '' });
+                  } else {
+                    const head = extrasList.find(h => String(h.id) === val);
+                    setExtraForm({ ...extraForm, fee_head_id: val, amount: head?.preset_amount || '' });
+                  }
                 }} className="w-full p-3 rounded-2xl bg-gray-50 dark:bg-neutral-900 border-2 outline-none font-bold text-sm">
                   <option value="">Select Item...</option>
+                  <option value="manual" className="font-black text-emerald-600">✍️ Manual Entry</option>
                   {extrasList.map(h => <option key={h.id} value={h.id}>{h.name}</option>)}
                 </select>
-                <input type="number" placeholder="Amount (₹)" value={extraForm.amount} onChange={e => setExtraForm({...extraForm, amount: e.target.value})} className="w-full p-3 rounded-2xl bg-gray-50 dark:bg-neutral-900 border-2 outline-none font-bold text-sm" />
+
+                {extraForm.fee_head_id === 'manual' && (
+                  <input type="text" placeholder="Custom Item Name" value={extraForm.manual_title} onChange={e => setExtraForm({...extraForm, manual_title: e.target.value})} className="w-full p-3 rounded-2xl bg-gray-50 dark:bg-neutral-900 border-2 outline-none font-bold text-sm focus:border-emerald-500" />
+                )}
+
+                <input type="number" placeholder="Amount (₹)" value={extraForm.amount} onChange={e => setExtraForm({...extraForm, amount: e.target.value})} className="w-full p-3 rounded-2xl bg-gray-50 dark:bg-neutral-900 border-2 outline-none font-bold text-sm focus:border-emerald-500" />
+                
+                <input type="text" placeholder="Remarks (Optional)" value={extraForm.remarks} onChange={e => setExtraForm({...extraForm, remarks: e.target.value})} className="w-full p-3 rounded-2xl bg-gray-50 dark:bg-neutral-900 border-2 outline-none font-bold text-sm focus:border-emerald-500" />
                 <div className="flex gap-2 pt-2">
                   <button onClick={() => setModals({...modals, extra: false})} className="flex-1 py-3 font-bold rounded-xl bg-gray-100 text-gray-500">Cancel</button>
                   <button onClick={handleAddExtra} disabled={processing} className="flex-1 py-3 font-bold rounded-xl bg-emerald-600 text-white">Add to Due</button>
@@ -511,8 +539,8 @@ export default function SmartStudentLedger() {
         {modals.discount && !isDependent && !isStaff && (
           <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex justify-center items-center p-4">
             <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className="w-full max-w-sm bg-white dark:bg-[#1a1a1a] p-6 rounded-[2rem] shadow-2xl">
-              <h3 className="text-lg font-black mb-1">Grant Discount</h3>
-              <p className="text-[10px] font-bold text-amber-500 mb-4 uppercase">Max 10% ({fmt(aggregated.total_due * 0.35)})</p>
+            <h3 className="text-lg font-black mb-1">Grant Discount</h3>
+            <p className="text-[10px] font-bold text-amber-500 mb-4 uppercase">Custom Discount</p>
               <div className="space-y-4">
                 <select value={targetStudentId} onChange={e => setTargetStudentId(e.target.value)} className="w-full p-3 rounded-2xl bg-gray-50 dark:bg-neutral-900 border-2 outline-none font-bold text-sm">
                   {allStudents.map(s => <option key={s.student.id} value={s.student.id}>{s.student.name} ({s.student.class_name})</option>)}
