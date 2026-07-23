@@ -40,14 +40,17 @@ export default function Home() {
   const [sendingSuggestion, setSendingSuggestion] = useState(false);
 
   // --- ACCOUNTANT DASHBOARD STATE ---
-const [finStats, setFinStats] = useState(null);
-const [finChart, setFinChart] = useState([]);
-const [finClassData, setFinClassData] = useState([]);
-const [finLoading, setFinLoading] = useState(false);
-const [finRefreshing, setFinRefreshing] = useState(false);
+  const [finStats, setFinStats] = useState(null);
+  const [finChart, setFinChart] = useState([]);
+  const [finClassData, setFinClassData] = useState([]);
+  const [finLoading, setFinLoading] = useState(false);
+  const [finRefreshing, setFinRefreshing] = useState(false);
+
+  // --- STUDENT ACTUAL FEE STATE ---
+  const [feeDue, setFeeDue] = useState(null);
+  const [fetchingFee, setFetchingFee] = useState(false);
 
   // --- MOCK DATA FOR THE CREATIVE BENTO (Will be replaced by API later) ---
-  const mockFeeDue = "4,500";
   const mockAttendance = "76%";
 
   // --- 1. BLOCK INSTALL PROMPT & BROWSER VISUALS ---
@@ -88,7 +91,7 @@ const [finRefreshing, setFinRefreshing] = useState(false);
     return () => window.removeEventListener('popstate', handlePopState);
   }, [showModal]);
 
-  // --- 3. DATA FETCHING ---
+  // --- 3. DATA FETCHING (Home Content) ---
   useEffect(() => {
     async function fetchData() {
       try {
@@ -118,41 +121,71 @@ const [finRefreshing, setFinRefreshing] = useState(false);
   }, [user]);
 
   // --- 3b. ACCOUNTANT DASHBOARD FETCH ---
-const fetchFinDashboard = async (isRefresh = false) => {
-   if (isRefresh) setFinRefreshing(true);
-   else setFinLoading(true);
-   try {
-     const token = (() => {
-       try { return JSON.parse(localStorage.getItem('gmps_user') || '{}')?.token || ''; }
-       catch { return ''; }
-     })();
-     const res = await fetch(
-       `${process.env.NEXT_PUBLIC_API_URL}/fin_api.php?action=get_dashboard_stats`,
-       { headers: { 'Authorization': `Bearer ${token}` } }
-     );
-     let text = await res.text();
-     try {
-       const f = text.indexOf('{'), l = text.lastIndexOf('}');
-       if (f !== -1 && l !== -1) text = text.substring(f, l + 1);
-       const json = JSON.parse(text);
-       if (json.success) {
-         setFinStats(json.stats);
-         setFinChart(json.chart || []);
-         setFinClassData(json.class_data || []);
-       }
-     } catch { /* silent */ }
-   } catch { /* silent */ }
-   finally {
-     if (isRefresh) setFinRefreshing(false);
-     else setFinLoading(false);
-   }
- };
+  const fetchFinDashboard = async (isRefresh = false) => {
+    if (isRefresh) setFinRefreshing(true);
+    else setFinLoading(true);
+    try {
+      const token = (() => {
+        try { return JSON.parse(localStorage.getItem('gmps_user') || '{}')?.token || ''; }
+        catch { return ''; }
+      })();
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/fin_api.php?action=get_dashboard_stats`,
+        { headers: { 'Authorization': `Bearer ${token}` } }
+      );
+      let text = await res.text();
+      try {
+        const f = text.indexOf('{'), l = text.lastIndexOf('}');
+        if (f !== -1 && l !== -1) text = text.substring(f, l + 1);
+        const json = JSON.parse(text);
+        if (json.success) {
+          setFinStats(json.stats);
+          setFinChart(json.chart || []);
+          setFinClassData(json.class_data || []);
+        }
+      } catch { /* silent */ }
+    } catch { /* silent */ }
+    finally {
+      if (isRefresh) setFinRefreshing(false);
+      else setFinLoading(false);
+    }
+  };
  
- useEffect(() => {
-   if (isAccountant && user) fetchFinDashboard();
-   // eslint-disable-next-line react-hooks/exhaustive-deps
- }, [user, activeSession]);
- 
+  useEffect(() => {
+    if (user?.role === 'admin' && user?.level == 3) fetchFinDashboard();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, activeSession]);
+
+  // --- 3c. STUDENT ACTUAL FEE DUE FETCH ---
+  useEffect(() => {
+    async function fetchActualFee() {
+      if ((user?.role === 'student' || !user?.role) && user?.id) {
+        setFetchingFee(true);
+        try {
+          const token = JSON.parse(localStorage.getItem('gmps_user') || '{}')?.token || '';
+          const sessionVal = activeSession?.value || activeSession || '2026-2027';
+          const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/fin_api.php?action=get_simple_ledger&student_id=${user.id}&session=${sessionVal}`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+          });
+          
+          let text = await res.text();
+          const f = text.indexOf('{'), l = text.lastIndexOf('}');
+          if (f !== -1 && l !== -1) text = text.substring(f, l + 1);
+          const json = JSON.parse(text);
+          
+          if (json.success) {
+            setFeeDue(json.balance || 0);
+          }
+        } catch (e) {
+          console.error("Fee Fetch Error", e);
+        } finally {
+          setFetchingFee(false);
+        }
+      }
+    }
+    fetchActualFee();
+  }, [user, activeSession]);
+
   // --- 4. SLIDESHOW TIMER ---
   useEffect(() => {
     if (!data?.slides || data.slides.length === 0) return;
@@ -214,14 +247,14 @@ const fetchFinDashboard = async (isRefresh = false) => {
   // --- LOGIC HELPERS ---
   const isAccountant = user?.role === 'admin' && user?.level == 3;
 
-const getCardStyle = () => {
-  if (isAccountant) return "from-emerald-700 to-teal-800";
-  if (user?.role === 'admin') return "from-slate-800 to-black";
-  if (user?.role === 'teacher') return "from-indigo-600 to-purple-600";
-  return "from-orange-500 to-red-500";
-};
+  const getCardStyle = () => {
+    if (isAccountant) return "from-emerald-700 to-teal-800";
+    if (user?.role === 'admin') return "from-slate-800 to-black";
+    if (user?.role === 'teacher') return "from-indigo-600 to-purple-600";
+    return "from-orange-500 to-red-500";
+  };
 
-const getBadgeText = () => {
+  const getBadgeText = () => {
    if (user?.role === 'admin' && user?.level == 3) return 'Accountant';
    if (user?.role === 'admin') return user?.level == 1 ? 'Super Admin' : 'Admin';
     if (user?.role === 'teacher') {
@@ -339,7 +372,7 @@ const getBadgeText = () => {
         </div>
       </div>
 
-            {/* ======================================================== */}
+      {/* ======================================================== */}
       {/* --- CREATIVE BENTO DASHBOARD (SKETCH INSPIRED) --- */}
       {/* ======================================================== */}
       <div className="px-4 mb-10 mt-2">
@@ -371,7 +404,9 @@ const getBadgeText = () => {
                         </div>
                         <div className="relative z-10 mt-auto text-center bg-white/20 backdrop-blur-sm rounded-xl py-2 px-1 border border-white/20">
                            <p className="text-orange-100 text-[9px] uppercase tracking-widest font-bold mb-0.5">Due</p>
-                           <h4 className="text-lg font-black text-white leading-none">₹{mockFeeDue}</h4>
+                           <h4 className="text-lg font-black text-white leading-none">
+                             {fetchingFee ? '...' : (feeDue !== null ? `₹${Number(feeDue).toLocaleString('en-IN', { maximumFractionDigits: 0 })}` : '---')}
+                           </h4>
                         </div>
                         <CreditCard className="absolute -bottom-6 -right-6 w-32 h-32 text-white opacity-20 transform -rotate-12 pointer-events-none" />
                      </Link>
@@ -490,7 +525,7 @@ const getBadgeText = () => {
             </div>
          )}
 
-                  {/* ------------------------------------------------ */}
+         {/* ------------------------------------------------ */}
          {/* 3. ACCOUNTANT DASHBOARD */}
          {/* ------------------------------------------------ */}
          {isAccountant && (
@@ -1007,6 +1042,7 @@ export function AccountantFinanceDashboard({ stats, chart, classData, loading, r
                <ToolAppIcon title="Ledger" icon={BookOpen} link="/accountant/ledger" iconColor="text-blue-600" />
                <ToolAppIcon title="Fee Map" icon={GraduationCap} link="/accountant/mapping" iconColor="text-purple-600" />
                <ToolAppIcon title="Siblings" icon={LinkIcon} link="/accountant/siblings" iconColor="text-cyan-600" />
+               <ToolAppIcon title="Transport" icon={Bus} link="/accountant/transport" iconColor="text-amber-500" />
                <ToolAppIcon title="Fee Matrix" icon={Settings} link="/accountant/fees/matrix" iconColor="text-teal-600" />
                <ToolAppIcon title="Fee Heads" icon={FileText} link="/accountant/fees/heads" iconColor="text-indigo-600" />
                <ToolAppIcon title="Defaulters" icon={ShieldAlert} link="/accountant/defaulters" iconColor="text-rose-600" />
